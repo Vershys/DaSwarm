@@ -1,6 +1,7 @@
 """Authenticated control plane and durable-cursor WebSocket transport."""
 import asyncio
 import os
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request
@@ -108,6 +109,128 @@ def install(app,service=None,auth=None):
         with service.db.engine.connect() as c:
             counts=c.execute(select(jobs.c.task_type,jobs.c.status,func.count().label('count')).group_by(jobs.c.task_type,jobs.c.status)).mappings()
             return {'counts':[dict(x) for x in counts],'paused':service.settings(c)['data']['paused_queues']}
+    @router.get('/agents/telemetry')
+    def agent_telemetry():
+        """Live operator view over task executors.
+
+        Heartbeat freshness is derived from the same lease that fences task writes,
+        so a green agent card means the worker is still renewing authority to act.
+        """
+        now_ts=time.time()
+        with service.db.engine.connect() as c:
+            cfg=service.settings(c)['data']
+            lease_seconds=float(cfg['lease_seconds'])
+            workers=[dict(x) for x in c.execute(select(objects).where(objects.c.object_type=='Worker').order_by(objects.c.created_at)).mappings()]
+            all_jobs=[dict(x) for x in c.execute(select(jobs).where(jobs.c.worker_id.is_not(None)).order_by(jobs.c.created_at.desc())).mappings()]
+            by_worker={}
+            for job in all_jobs:
+                by_worker.setdefault(job['worker_id'],[]).append(job)
+            agents=[]
+            role_names={
+                'browser':'Discovery',
+                'gpu_media':'Media analysis',
+                'render':'Rendering',
+                'publisher':'Publishing',
+                'io':'Ingest / I/O',
+                'cpu_media':'Media processing',
+                'llm':'Reasoning',
+            }
+            for worker in workers:
+                history=by_worker.get(worker['id'],[])
+                active=next((j for j in history if j['status']=='RUNNING'),None)
+                latest=active or (history[0] if history else None)
+                if active:
+                    heartbeat_at=float(active['lease_until'])-lease_seconds
+                    heartbeat_age=max(0.0,now_ts-heartbeat_at)
+                    lease_remaining=max(0.0,float(active['lease_until'])-now_ts)
+                    state='WORKING' if lease_remaining>0 else 'STALE'
+                else:
+                    heartbeat_at=None
+                    heartbeat_age=None
+                    lease_remaining=0.0
+                    state='IDLE'
+                target=None
+                task_obj=None
+                started_at=None
+                recent=[]
+                if latest:
+                    try:
+                        task_obj=service.get(c,latest['task_id'])
+                    except Exception:
+                        task_obj=None
+                    ref=latest.get('object_ref') or {}
+                    object_id=ref.get('objectId')
+                    if object_id:
+                        try:
+                            target=service.get(c,object_id)
+                        except Exception:
+                            target=None
+                    start_ev=row(c.execute(select(events).where(and_(
+                        events.c.object_id==latest['task_id'],
+                        events.c.event_type=='TASK_STARTED'
+                    )).order_by(events.c.sequence.desc()).limit(1)))
+                    started_at=start_ev['timestamp'] if start_ev else None
+                    trace_rows=c.execute(select(events).where(events.c.trace_id==latest['trace_id']).order_by(events.c.sequence.desc()).limit(8)).mappings()
+                    recent=[{
+                        'event_type':x['event_type'],
+                        'timestamp':x['timestamp'],
+                        'object_id':x['object_id'],
+                        'object_type':x['object_type'],
+                        'severity':x['severity'],
+                    } for x in trace_rows]
+                assigned=len(history)
+                succeeded=sum(1 for j in history if j['status']=='SUCCEEDED')
+                failed=sum(1 for j in history if j['status'] in ('WAITING_RETRY','DEAD_LETTER'))
+                resource=(latest or {}).get('resource_class')
+                agents.append({
+                    'id':worker['id'],
+                    'label':worker['title'],
+                    'kind':'worker',
+                    'role':role_names.get(resource,resource or 'Execution'),
+                    'state':state,
+                    'pid':worker['metadata'].get('pid'),
+                    'resource_class':resource,
+                    'queue':('swarm.'+resource) if resource else None,
+                    'task':None if not latest else {
+                        'id':latest['task_id'],
+                        'type':latest['task_type'],
+                        'status':latest['status'],
+                        'attempt':latest['attempt'],
+                        'max_attempts':latest['max_attempts'],
+                        'priority':latest['priority'],
+                        'started_at':started_at,
+                        'payload':latest.get('payload') or {},
+                    },
+                    'target':None if not target else {
+                        'id':target['id'],
+                        'object_type':target['object_type'],
+                        'title':target['title'],
+                        'status':target['status'],
+                    },
+                    'trace_id':(latest or {}).get('trace_id'),
+                    'heartbeat_at':heartbeat_at,
+                    'heartbeat_age_seconds':heartbeat_age,
+                    'lease_remaining_seconds':lease_remaining,
+                    'stats':{
+                        'assigned':assigned,
+                        'succeeded':succeeded,
+                        'retry_or_dead_letter':failed,
+                    },
+                    'recent_activity':recent,
+                })
+            working=sum(1 for a in agents if a['state']=='WORKING')
+            stale=sum(1 for a in agents if a['state']=='STALE')
+            return {
+                'server_time':now_ts,
+                'lease_seconds':lease_seconds,
+                'summary':{
+                    'known_agents':len(agents),
+                    'working':working,
+                    'idle':sum(1 for a in agents if a['state']=='IDLE'),
+                    'stale':stale,
+                },
+                'agents':agents,
+            }
     def collection(kind):
         def endpoint():
             with service.db.engine.connect() as c: return service.query(c,kind)
