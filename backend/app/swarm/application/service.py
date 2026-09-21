@@ -82,17 +82,19 @@ class Service:
                   created_at=now(),valid_from=now(),valid_to=None)
         c.execute(edges.insert().values(**edge)); self.event(c,'EDGE_CREATED',None,trace,cause,{'edge':edge})
         return edge
-    def schedule(self,c,kind,obj,trace,cause,payload=None):
+    def schedule(self,c,kind,obj,trace,cause,payload=None,not_before=0):
         key=f'{trace}:{kind}:{obj["id"]}'
         old=row(c.execute(select(jobs).where(jobs.c.idempotency_key==key)))
         if old: return old['task_id']
+        due=float(not_before or 0)
         task,ev=self.create(c,'Task',kind,metadata={'task_type':kind,'object_ref':{'objectId':obj['id'],'objectType':obj['object_type']}},trace=trace,cause=cause,event_type='TASK_CREATED')
         c.execute(jobs.insert().values(task_id=task['id'],task_type=kind,
             object_ref={'objectId':obj['id'],'objectType':obj['object_type']},trace_id=trace,correlation_id=trace,
             causation_event_id=ev['event_id'],idempotency_key=key,priority=0,attempt=0,
             max_attempts=self.settings(c)['data']['max_attempts'],resource_class=RESOURCES[kind],created_at=now(),
-            not_before=0,lease_until=0,lease_token=None,worker_id=None,cancelled=0,status='QUEUED',payload=payload or {}))
-        self.enqueue_outbox(c,'task',key,{'task_id':task['id'],'resource_class':RESOURCES[kind]})
+            not_before=due,lease_until=0,lease_token=None,worker_id=None,cancelled=0,status='QUEUED',payload=payload or {}))
+        if due<=time.time():
+            self.enqueue_outbox(c,'task',key,{'task_id':task['id'],'resource_class':RESOURCES[kind]})
         return task['id']
     def query(self,c,kind=None,search='',status=None,limit=100,offset=0,filters=None):
         q=select(projections.c.state).where(projections.c.object_type==kind) if kind else select(projections.c.state)
