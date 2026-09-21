@@ -1,0 +1,41 @@
+name: Swarm fast validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/swarm/**'
+      - 'frontend/src/swarm/**'
+      - 'frontend/e2e/swarm.spec.ts'
+      - 'tests/swarm/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/swarm-fast.yml'
+permissions:
+  contents: read
+concurrency:
+  group: swarm-fast-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: 'npm', cache-dependency-path: 'frontend/package-lock.json'}
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q fastapi uvicorn sqlalchemy 'psycopg[binary]' alembic redis celery boto3 pyyaml pytest httpx websockets pillow
+      - name: Swarm backend tests
+        run: PYTHONPATH=backend python -m pytest tests/swarm -q
+      - name: Frontend validation
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run test
+          npm run type-check
+          npm run lint
+          npm run build
