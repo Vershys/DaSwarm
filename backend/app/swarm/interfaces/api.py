@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, FileResponse
 from sqlalchemy import select, func, and_, or_
+from redis import Redis
 from app.swarm.application.service import Service, row
 from app.swarm.domain.contracts import Command, Conflict, Forbidden, NotFound, BLUEPRINT
 from app.swarm.infrastructure.database import Database, objects, edges, events, jobs, scores, outbox
@@ -111,11 +112,7 @@ def install(app,service=None,auth=None):
             return {'counts':[dict(x) for x in counts],'paused':service.settings(c)['data']['paused_queues']}
     @router.get('/agents/telemetry')
     def agent_telemetry():
-        """Live operator view over task executors.
-
-        Heartbeat freshness is derived from the same lease that fences task writes,
-        so a green agent card means the worker is still renewing authority to act.
-        """
+        """Live common operating picture for DaSwarm execution agents."""
         now_ts=time.time()
         with service.db.engine.connect() as c:
             cfg=service.settings(c)['data']
@@ -125,6 +122,29 @@ def install(app,service=None,auth=None):
             by_worker={}
             for job in all_jobs:
                 by_worker.setdefault(job['worker_id'],[]).append(job)
+
+            presence={}
+            try:
+                redis=Redis.from_url(os.environ.get('SWARM_REDIS_URL','redis://redis:6379/1'),socket_connect_timeout=1,socket_timeout=1)
+                for key in redis.scan_iter(match='swarm:agent:*',count=100):
+                    raw=redis.get(key)
+                    if raw:
+                        import json
+                        item=json.loads(raw)
+                        presence[item['id']]=item
+            except Exception:
+                presence={}
+
+            known={w['id']:w for w in workers}
+            for agent_id,item in presence.items():
+                if agent_id not in known:
+                    known[agent_id]={
+                        'id':agent_id,
+                        'title':'agent-'+agent_id.rsplit(':',1)[-1],
+                        'metadata':{'pid':item.get('pid')},
+                        'created_at':None,
+                    }
+
             agents=[]
             role_names={
                 'browser':'Discovery',
@@ -135,29 +155,30 @@ def install(app,service=None,auth=None):
                 'cpu_media':'Media processing',
                 'llm':'Reasoning',
             }
-            for worker in workers:
-                history=by_worker.get(worker['id'],[])
+            for worker_id,worker in known.items():
+                live=presence.get(worker_id)
+                history=by_worker.get(worker_id,[])
                 active=next((j for j in history if j['status']=='RUNNING'),None)
                 latest=active or (history[0] if history else None)
-                if active:
+
+                heartbeat_at=float(live['heartbeat_at']) if live and live.get('heartbeat_at') else None
+                heartbeat_age=max(0.0,now_ts-heartbeat_at) if heartbeat_at else None
+                lease_remaining=max(0.0,float(active['lease_until'])-now_ts) if active else 0.0
+                if live:
+                    state='WORKING' if live.get('state')=='WORKING' else 'IDLE'
+                    if active and lease_remaining<=0:
+                        state='STALE'
+                elif active:
+                    state='WORKING' if lease_remaining>0 else 'STALE'
                     heartbeat_at=float(active['lease_until'])-lease_seconds
                     heartbeat_age=max(0.0,now_ts-heartbeat_at)
-                    lease_remaining=max(0.0,float(active['lease_until'])-now_ts)
-                    state='WORKING' if lease_remaining>0 else 'STALE'
                 else:
-                    heartbeat_at=None
-                    heartbeat_age=None
-                    lease_remaining=0.0
-                    state='IDLE'
+                    state='OFFLINE'
+
                 target=None
-                task_obj=None
                 started_at=None
                 recent=[]
                 if latest:
-                    try:
-                        task_obj=service.get(c,latest['task_id'])
-                    except Exception:
-                        task_obj=None
                     ref=latest.get('object_ref') or {}
                     object_id=ref.get('objectId')
                     if object_id:
@@ -178,28 +199,34 @@ def install(app,service=None,auth=None):
                         'object_type':x['object_type'],
                         'severity':x['severity'],
                     } for x in trace_rows]
+
+                resource=(active or latest or {}).get('resource_class') or (live or {}).get('resource_class')
+                configured_role=(live or {}).get('role')
+                configured_queues=(live or {}).get('queues') or []
                 assigned=len(history)
                 succeeded=sum(1 for j in history if j['status']=='SUCCEEDED')
-                failed=sum(1 for j in history if j['status'] in ('WAITING_RETRY','DEAD_LETTER'))
-                resource=(latest or {}).get('resource_class')
+                retrying=sum(1 for j in history if j['status']=='WAITING_RETRY')
+                dead=sum(1 for j in history if j['status']=='DEAD_LETTER')
+                current_job=active or latest
                 agents.append({
-                    'id':worker['id'],
-                    'label':worker['title'],
+                    'id':worker_id,
+                    'label':worker.get('title') or 'agent-'+worker_id[-8:],
                     'kind':'worker',
-                    'role':role_names.get(resource,resource or 'Execution'),
+                    'role':configured_role or role_names.get(resource,resource or 'Execution'),
                     'state':state,
-                    'pid':worker['metadata'].get('pid'),
+                    'hostname':(live or {}).get('hostname'),
+                    'pid':(live or {}).get('pid') or worker.get('metadata',{}).get('pid'),
                     'resource_class':resource,
-                    'queue':('swarm.'+resource) if resource else None,
-                    'task':None if not latest else {
-                        'id':latest['task_id'],
-                        'type':latest['task_type'],
-                        'status':latest['status'],
-                        'attempt':latest['attempt'],
-                        'max_attempts':latest['max_attempts'],
-                        'priority':latest['priority'],
+                    'queues':configured_queues or ([('swarm.'+resource)] if resource else []),
+                    'task':None if not current_job else {
+                        'id':current_job['task_id'],
+                        'type':current_job['task_type'],
+                        'status':current_job['status'],
+                        'attempt':current_job['attempt'],
+                        'max_attempts':current_job['max_attempts'],
+                        'priority':current_job['priority'],
                         'started_at':started_at,
-                        'payload':latest.get('payload') or {},
+                        'payload':current_job.get('payload') or {},
                     },
                     'target':None if not target else {
                         'id':target['id'],
@@ -207,30 +234,34 @@ def install(app,service=None,auth=None):
                         'title':target['title'],
                         'status':target['status'],
                     },
-                    'trace_id':(latest or {}).get('trace_id'),
+                    'trace_id':(current_job or {}).get('trace_id'),
                     'heartbeat_at':heartbeat_at,
                     'heartbeat_age_seconds':heartbeat_age,
                     'lease_remaining_seconds':lease_remaining,
                     'stats':{
                         'assigned':assigned,
                         'succeeded':succeeded,
-                        'retry_or_dead_letter':failed,
+                        'retrying':retrying,
+                        'dead_letter':dead,
                     },
                     'recent_activity':recent,
                 })
-            working=sum(1 for a in agents if a['state']=='WORKING')
-            stale=sum(1 for a in agents if a['state']=='STALE')
+            order={'WORKING':0,'STALE':1,'IDLE':2,'OFFLINE':3}
+            agents.sort(key=lambda a:(order.get(a['state'],9),a['role'],a['label']))
             return {
                 'server_time':now_ts,
                 'lease_seconds':lease_seconds,
                 'summary':{
                     'known_agents':len(agents),
-                    'working':working,
+                    'online':sum(1 for a in agents if a['state'] in ('WORKING','IDLE')),
+                    'working':sum(1 for a in agents if a['state']=='WORKING'),
                     'idle':sum(1 for a in agents if a['state']=='IDLE'),
-                    'stale':stale,
+                    'stale':sum(1 for a in agents if a['state']=='STALE'),
+                    'offline':sum(1 for a in agents if a['state']=='OFFLINE'),
                 },
                 'agents':agents,
             }
+
     def collection(kind):
         def endpoint():
             with service.db.engine.connect() as c: return service.query(c,kind)
