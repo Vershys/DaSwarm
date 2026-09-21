@@ -110,7 +110,17 @@ class Worker:
                     self.s.change(c,obj['id'],obj['version'],job['trace_id'],job['causation_event_id'],'ANALYSIS_STARTED',status='ANALYZING')
             time.sleep(float(os.environ.get('SWARM_TEST_ANALYSIS_DELAY','0')))
             asset=self.media.asset(obj,cfg)
-            return {'probe':self.media.probe(asset,cfg),'analysis_mode':'real_media_structural','transcript':None,'embedding':None}
+            probe=self.media.probe(asset,cfg)
+            if obj['metadata'].get('fixture') and os.environ.get('SWARM_TEST_SIMULATION','false').lower()=='true':
+                import hashlib
+                digest=hashlib.sha256(obj['title'].encode()).digest()
+                return {
+                    'probe':probe,
+                    'analysis_mode':'test_fixture',
+                    'transcript':{'provider':'test_fixture','model_version':'fixture-v1','text':'[Test fixture transcript]','simulated':True},
+                    'embedding':{'provider':'test_fixture','model_version':'hash-fixture-v1','vector':[round(x/255,6) for x in digest],'simulated':True}
+                }
+            return {'probe':probe,'analysis_mode':'real_media_structural','transcript':None,'embedding':None}
         if kind=='RENDER':
             with self.s.transaction() as c:
                 obj=self.s.get(c,obj['id'])
