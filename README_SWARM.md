@@ -36,6 +36,21 @@ Open `/swarm` for DaSwarm; `/chat` for upstream AI-Manus. The swarm does not fak
 
 For deterministic CI only, the acceptance environment sets `SWARM_TEST_SIMULATION=true`. That enables the generated fixture and simulated post/metrics so crash recovery, idempotency, event replay, and retry behavior can be tested without external services.
 
+## Agent Ops live sensor
+
+The main `/swarm` screen includes a live **Agent Ops** common operating picture. Each Celery execution process publishes an ephemeral Redis presence heartbeat once per second with a five-second TTL. The dashboard combines that presence with the durable task lease and event ledger to show:
+
+- agent role and process identity;
+- online, working, standing-by, stale and offline state;
+- current task and target object;
+- heartbeat age and lease time remaining;
+- task runtime and retry attempt;
+- queues/resources owned by the process;
+- completed/retrying/dead-letter history;
+- the most recent events in the active trace.
+
+Agent presence is deliberately ephemeral so a killed process cannot remain falsely green. Durable worker/task/event history remains in PostgreSQL. Clicking an agent's target links the operator directly back to that Candidate or Composition in the normal workflow.
+
 ## Modify it
 
 - **Settings**: audited, version-checked scoring weights, retry/lease policy, queue pauses and media limits.
