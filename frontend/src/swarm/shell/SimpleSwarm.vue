@@ -6,9 +6,18 @@ import AgentOps from './AgentOps.vue'
 
 const s = useControl()
 
+interface CapabilityEntry {
+  installed?:boolean
+  real?:boolean
+  media_access?:string
+}
+interface Capabilities {
+  discovery?:Record<string,CapabilityEntry>
+}
+
 const candidates = ref<SwarmObject[]>([])
 const compositions = ref<SwarmObject[]>([])
-const capabilities = ref<Record<string,any>|null>(null)
+const capabilities = ref<Capabilities|null>(null)
 const discoveryProvider = ref('wikimedia_commons')
 const discoveryQuery = ref('nature')
 const discoveryBudget = ref(8)
@@ -119,7 +128,10 @@ async function saveSettings() {
 function pipelinePaused(group:string[]) { return group.every(q=>settingsDraft.value.paused_queues.includes(q)) }
 function setPipeline(group:string[], paused:boolean) {
   const current = new Set(settingsDraft.value.paused_queues)
-  for (const q of group) paused ? current.add(q) : current.delete(q)
+  for (const q of group) {
+    if (paused) current.add(q)
+    else current.delete(q)
+  }
   settingsDraft.value.paused_queues = [...current]
 }
 
@@ -129,7 +141,7 @@ async function refreshData() {
       api<{items:SwarmObject[]}>('/objects/query',{object_type:'Candidate',search:'',status:null,limit:20}),
       api<{items:SwarmObject[]}>('/objects/query',{object_type:'Composition',search:'',status:null,limit:20}),
       api<{objects:Record<string,number>;tasks:Record<string,number>;pending_outbox:number;last_sequence:number}>('/operations/summary'),
-      api<Record<string,any>>('/capabilities')
+      api<Capabilities>('/capabilities')
     ])
     candidates.value = c.items
     compositions.value = co.items
@@ -147,7 +159,8 @@ async function choose(o:SwarmObject) {
   selected.value = o
   atoms.value = []
   storyboard.value = []
-  try { await s.select({objectId:o.id,objectType:o.object_type,version:o.version}) } catch {}
+  try { await s.select({objectId:o.id,objectType:o.object_type,version:o.version}) }
+  catch (e) { message.value=String(e) }
 }
 
 async function inspectAgentTarget(id:string) {
@@ -268,7 +281,7 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
           <div><strong>{{activeTasks}}</strong><span>jobs working</span></div>
           <div><strong>{{candidates.length}}</strong><span>videos found</span></div>
           <div><strong>{{compositions.length}}</strong><span>clips built</span></div>
-          <div><strong>{{Object.values(capabilities?.discovery||{}).filter((x:any)=>x.installed).length}}</strong><span>live sources</span></div>
+          <div><strong>{{Object.values(capabilities?.discovery||{}).filter(x=>x.installed).length}}</strong><span>live sources</span></div>
         </div>
       </section>
 
