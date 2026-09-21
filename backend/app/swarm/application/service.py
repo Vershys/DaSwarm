@@ -163,17 +163,32 @@ class Service:
                 provider=str(p.get('provider') or 'wikimedia_commons')
                 query=str(p.get('query') or 'nature').strip()[:200] or 'nature'
                 budget=max(1,min(int(p.get('budget') or 8),25))
+                continuous=bool(p.get('continuous',True))
+                cadence=max(15,min(int(p.get('cadence_seconds') or 60),86400))
                 title=f'{provider} · {query}'
                 source=row(c.execute(select(objects).where(and_(objects.c.object_type=='Source',objects.c.title==title))))
-                source_metadata={'provider':provider,'query':query,'item_budget':budget,'live':True}
+                source_metadata={
+                    'provider':provider,
+                    'query':query,
+                    'item_budget':budget,
+                    'live':True,
+                    'continuous':continuous,
+                    'cadence_seconds':cadence,
+                    'discovery_active':True,
+                }
                 if not source:
                     source,ev=self.create(c,'Source',title,metadata=source_metadata,trace=trace,event_type='SOURCE_CREATED')
                     cause=ev['event_id']
                 else:
                     source,ev=self.change(c,source['id'],source['version'],trace,None,'SOURCE_CONFIGURED',actor='human',actor_id=actor_id,metadata={**source['metadata'],**source_metadata})
                     cause=ev['event_id']
-                task=self.schedule(c,'DISCOVER',source,trace,cause,{'query':query,'budget':budget})
-                result={'object':source,'task_id':task,'trace_id':trace,'live':True}
+                pending=[dict(x) for x in c.execute(select(jobs).where(and_(
+                    jobs.c.task_type=='DISCOVER',
+                    jobs.c.status.in_(['QUEUED','CLAIMED','RUNNING','WAITING_RETRY'])
+                ))).mappings()]
+                existing=next((j for j in pending if (j.get('object_ref') or {}).get('objectId')==source['id']),None)
+                task=existing['task_id'] if existing else self.schedule(c,'DISCOVER',source,trace,cause,{'query':query,'budget':budget,'continuous':continuous,'cadence_seconds':cadence})
+                result={'object':source,'task_id':task,'trace_id':trace,'live':True,'continuous':continuous,'cadence_seconds':cadence}
             elif action=='discover':
                 if os.environ.get('SWARM_TEST_SIMULATION','false').lower()!='true':
                     raise Forbidden('Fixture discovery is test-only; use start_discovery')
