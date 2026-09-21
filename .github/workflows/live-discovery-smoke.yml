@@ -1,0 +1,34 @@
+name: Live discovery smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/swarm/infrastructure/providers.py'
+      - '.github/workflows/live-discovery-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  wikimedia-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install httpx
+      - name: Query real Wikimedia Commons video API
+        env:
+          PYTHONPATH: backend
+        run: |
+          python - <<'PY'
+          from app.swarm.infrastructure.providers import WikimediaCommonsProvider
+          items=WikimediaCommonsProvider().discover("nature",3)
+          assert items, "Live Wikimedia discovery returned no video results"
+          assert all(x["provider"]=="wikimedia_commons" for x in items)
+          assert all(x["page_url"].startswith("https://") for x in items)
+          assert all(x["media_url"] and x["media_url"].startswith("https://") for x in items)
+          print("Live items:", len(items))
+          for x in items:
+              print(x["title"], x["media_url"][:120])
+          PY
