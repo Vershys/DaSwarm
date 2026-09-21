@@ -187,8 +187,31 @@ class Worker:
                 if item.get('media_url'):
                     s.schedule(c,'NORMALIZE',candidate,trace,ev['event_id'])
                 created+=1
-            source_meta={**source['metadata'],'last_discovery_count':created,'last_discovery_provider':artifacts.get('provider'),'last_discovery_query':artifacts.get('query'),'last_discovery_at':now()}
-            s.change(c,source['id'],source['version'],trace,cause,'SOURCE_DISCOVERY_COMPLETED',metadata=source_meta)
+            source_meta={
+                **source['metadata'],
+                'last_discovery_count':created,
+                'last_discovery_provider':artifacts.get('provider'),
+                'last_discovery_query':artifacts.get('query'),
+                'last_discovery_at':now(),
+            }
+            source,source_ev=s.change(c,source['id'],source['version'],trace,cause,'SOURCE_DISCOVERY_COMPLETED',metadata=source_meta)
+            if source_meta.get('continuous') and source_meta.get('discovery_active',True):
+                cadence=max(15,min(int(source_meta.get('cadence_seconds') or 60),86400))
+                next_trace=uid()
+                s.schedule(
+                    c,
+                    'DISCOVER',
+                    source,
+                    next_trace,
+                    source_ev['event_id'],
+                    {
+                        'query':source_meta.get('query') or artifacts.get('query') or 'nature',
+                        'budget':int(source_meta.get('item_budget') or 8),
+                        'continuous':True,
+                        'cadence_seconds':cadence,
+                    },
+                    not_before=time.time()+cadence,
+                )
         elif kind=='NORMALIZE':
             probe=artifacts.get('probe') or {}
             change('NORMALIZED','CANDIDATE_NORMALIZED',{**obj['metadata'],'probe':probe,'duration_seconds':probe.get('duration_seconds'),'ingest_status':'normalized'});next_task('DEDUPLICATE')
