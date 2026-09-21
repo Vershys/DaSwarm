@@ -11,6 +11,7 @@ from app.swarm.domain.contracts import Command
 def service(tmp_path,monkeypatch):
     monkeypatch.setenv('SWARM_MEDIA_ROOT',str(tmp_path/'media'))
     monkeypatch.setenv('SWARM_LOCAL_ONLY','true')
+    monkeypatch.setenv('SWARM_TEST_SIMULATION','true')
     postgres=os.environ.get('SWARM_TEST_POSTGRES_DSN')
     if postgres:
         from sqlalchemy import create_engine, text
