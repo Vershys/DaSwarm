@@ -1,6 +1,7 @@
 """Transactional command, ontology, query and event services."""
 import hashlib
 import json
+import os
 import time
 from contextlib import contextmanager
 from sqlalchemy import select, update, func, or_, and_
