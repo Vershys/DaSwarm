@@ -21,9 +21,33 @@ _agent_state={'state':'STARTING','task_id':None,'task_type':None,'target_id':Non
 _agent_lock=threading.Lock()
 _agent_stop=threading.Event()
 _agent_thread=None
+_agent_started=time.time()
+_agent_last_cpu=time.process_time()
+_agent_last_wall=time.time()
 
 def _agent_id():
     return f'celery:{socket.gethostname()}:{os.getpid()}'
+
+def _process_sensors():
+    global _agent_last_cpu,_agent_last_wall
+    wall=time.time()
+    cpu=time.process_time()
+    wall_delta=max(wall-_agent_last_wall,0.001)
+    cpu_percent=max(0.0,min(100.0,(cpu-_agent_last_cpu)/wall_delta*100.0))
+    _agent_last_cpu=cpu
+    _agent_last_wall=wall
+    rss_mb=None
+    try:
+        pages=int(open('/proc/self/statm',encoding='utf-8').read().split()[1])
+        rss_mb=pages*os.sysconf('SC_PAGE_SIZE')/1024/1024
+    except Exception:
+        pass
+    return {
+        'cpu_percent':round(cpu_percent,1),
+        'rss_mb':round(rss_mb,1) if rss_mb is not None else None,
+        'process_uptime_seconds':round(max(0.0,wall-_agent_started),1),
+        'threads':threading.active_count(),
+    }
 
 def _agent_payload():
     with _agent_lock:
@@ -40,6 +64,7 @@ def _agent_payload():
         'target_id':state.get('target_id'),
         'resource_class':state.get('resource_class'),
         'heartbeat_at':time.time(),
+        'sensors':_process_sensors(),
     }
 
 def _presence_loop():
@@ -53,7 +78,10 @@ def _presence_loop():
 
 @worker_process_init.connect
 def _register_agent(**_kwargs):
-    global _agent_thread
+    global _agent_thread,_agent_started,_agent_last_cpu,_agent_last_wall
+    _agent_started=time.time()
+    _agent_last_cpu=time.process_time()
+    _agent_last_wall=time.time()
     _agent_stop.clear()
     with _agent_lock:
         _agent_state.update(state='IDLE',task_id=None,task_type=None,target_id=None,resource_class=None)
