@@ -96,7 +96,7 @@ class Worker:
         if kind=='DISCOVER':
             provider_name=str(obj['metadata'].get('provider') or 'wikimedia_commons')
             query=str(obj['metadata'].get('query') or job['payload'].get('query') or 'nature')
-            budget=int(job['payload'].get('budget') or obj['metadata'].get('item_budget') or 8)
+            budget=int(obj['metadata'].get('item_budget') or job['payload'].get('budget') or 8)
             return {'items':get_provider(provider_name).discover(query,budget),'provider':provider_name,'query':query}
         if kind=='NORMALIZE':
             asset=self.media.asset(obj,cfg)
