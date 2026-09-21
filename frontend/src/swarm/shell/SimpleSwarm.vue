@@ -61,7 +61,7 @@ function statusLabel(o:SwarmObject) {
     PUBLISHED:'Finished',
     FAILED:'Needs attention'
   }
-  return labels[o.status] || o.status.replaceAll('_',' ').toLowerCase()
+  return labels[o.status] || o.status.split('_').join(' ').toLowerCase()
 }
 
 function statusDetail(o:SwarmObject) {
