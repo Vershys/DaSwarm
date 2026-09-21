@@ -35,3 +35,7 @@ The first real GitHub Compose gate found that the Docker Hub MinIO image is unav
 
 ## ADR-021: Always build the pinned application source
 Application services use local DaSwarm image tags and `pull_policy: build`. A normal Compose startup must not substitute an upstream `latest` image for the bundled extension. The launcher already explicitly supplies `--build`; the policy also protects source-based startup.
+
+
+## ADR-022: Platform-independent launcher payload
+A Windows artifact inspection found CRLF shell scripts introduced by checkout conversion. Packaging now reads canonical committed Git blobs and preserves Unix file modes in the ZIP. The mockserver image explicitly sets its entrypoint executable bit, independent of the Windows filesystem. Both launchers carry the same Git source snapshot; the Windows workflow checks Linux shell line endings before building the executable. Commit source modifications before repackaging.

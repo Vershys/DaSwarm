@@ -65,6 +65,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: python scripts/package_launcher.py
+      - run: python scripts/verify_launcher_bundle.py
       - name: Validate PowerShell syntax
         shell: powershell
         run: |

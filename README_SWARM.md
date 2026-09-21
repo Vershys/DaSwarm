@@ -44,6 +44,8 @@ Open `/swarm` for the command center; `/chat` for upstream AI-Manus. No real pub
 
 The current discovery adapter is simulated. Real web/platform discovery, real semantic models, generative media and platform publishing need explicit adapters. Configuration rejects provider names whose adapters are not installed.
 
+To rebuild the single-file launcher after modifying source, commit your changes, then run `python scripts/package_launcher.py`. The packager uses committed Git bytes so Windows cannot alter Linux shell scripts.
+
 ## Verification and limits
 
 See [acceptance evidence](docs/swarm/ACCEPTANCE_STATUS.md). Component tests are not substitutes for Docker, PostgreSQL, browser or Windows validation.

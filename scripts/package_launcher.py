@@ -7,17 +7,27 @@ import zipfile
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 output=root/'dist-swarm';output.mkdir(exist_ok=True)
-paths=subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
-# Include new tracked-for-release files even before final commit, but never local secrets.
-paths+=['scripts/launcher.ps1','scripts/package_launcher.py','scripts/launcher_entry.py']
-buffer=io.BytesIO()
+# Read committed Git blobs, not checkout bytes: Windows checkout may convert shell
+# scripts to CRLF, which makes their Linux interpreter paths invalid in containers.
+entries=[]
+for record in subprocess.check_output(['git','ls-tree','-rz','HEAD'],cwd=root).split(b'\0'):
+    if not record: continue
+    attributes,name=record.split(b'\t',1)
+    mode,kind,sha=attributes.decode().split()
+    name=name.decode()
+    if kind!='blob' or name.startswith(('.bootstrap/','.github/workflows/bootstrap-','release/')): continue
+    entries.append((name,mode,sha))
+blobs=subprocess.run(['git','cat-file','--batch'],input=''.join(sha+'\n' for _,_,sha in entries).encode(),cwd=root,check=True,stdout=subprocess.PIPE).stdout
+buffer=io.BytesIO();offset=0
 with zipfile.ZipFile(buffer,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
-    for name in sorted(set(paths)):
-        p=root/name
-        if not name or not p.is_file() or name.startswith(('.bootstrap/','.github/workflows/bootstrap-','release/')):continue
-        z.writestr(name,p.read_bytes())
-    if 'UPSTREAM_PIN' not in paths:
-        z.writestr('UPSTREAM_PIN','Simpleyyt/ai-manus\n496547ce6a5f599333138342ec126a7ea8ec9646\n')
+    for name,mode,sha in entries:
+        header_end=blobs.index(b'\n',offset)
+        actual,kind,size=blobs[offset:header_end].decode().split()
+        assert actual==sha and kind=='blob'
+        offset=header_end+1;data=blobs[offset:offset+int(size)];offset+=int(size)+1
+        info=zipfile.ZipInfo(name);info.create_system=3
+        info.external_attr=int(mode,8)<<16;info.compress_type=zipfile.ZIP_DEFLATED
+        z.writestr(info,data)
 archive=buffer.getvalue();(output/'project.zip').write_bytes(archive)
 ps=(root/'scripts/launcher.ps1').read_text()
 # The .cmd extracts its two embedded resources and launches the WinForms control window.
