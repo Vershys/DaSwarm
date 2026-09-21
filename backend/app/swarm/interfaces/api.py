@@ -254,6 +254,12 @@ def install(app,service=None,auth=None):
                     'heartbeat_at':heartbeat_at,
                     'heartbeat_age_seconds':heartbeat_age,
                     'lease_remaining_seconds':lease_remaining,
+                    'sensors':(live or {}).get('sensors') or {
+                        'cpu_percent':None,
+                        'rss_mb':None,
+                        'process_uptime_seconds':None,
+                        'threads':None,
+                    },
                     'stats':{
                         'assigned':assigned,
                         'succeeded':succeeded,
