@@ -154,8 +154,8 @@ async function publish(o:SwarmObject) {
   finally { actionBusy.value=false }
 }
 
-onMounted(async()=>{ await refreshData(); poll=setInterval(()=>void refreshData(),2000) })
-onUnmounted(()=>{ if(poll) clearInterval(poll) })
+onMounted(async()=>{ try { await s.start(); await refreshData(); poll=setInterval(()=>void refreshData(),2000) } catch(e) { message.value=String(e) } })
+onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
 </script>
 
 <template>
