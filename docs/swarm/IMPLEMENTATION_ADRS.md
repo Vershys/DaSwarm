@@ -27,3 +27,7 @@ The pinned upstream npm lockfile referenced a package mirror that returned inval
 ## ADR-019: GitHub transport and upstream pin
 
 The connected GitHub app permits direct repository writes, but this environment has no authenticated shell Git push credentials. Source files are therefore published directly through the connector as an exact snapshot of the local pinned checkout plus implementation. The remote commit descends from the repository initialization commit; it does not claim to import upstream Git history. `UPSTREAM_PIN` records the authoritative baseline, and the local checkout retains upstream ancestry. Verification workflows have read-only repository permissions. No workflow automatically writes commits to main.
+
+
+### ADR-020 — Build pinned MinIO source
+The first real GitHub Compose gate found that the Docker Hub MinIO image is unavailable. Build the official release source at commit `07c3a429bfed433e49018cb0f78a52145d4bedeb` in a multi-stage image, retaining its license and revision metadata. The S3 storage contract remains unchanged. CI explicitly installs FFmpeg for host-side media acceptance tests.

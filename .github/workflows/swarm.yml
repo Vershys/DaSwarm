@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main, manu-swarm-turnkey]
-    paths: ['backend/**', 'frontend/**', 'tests/swarm/**', 'scripts/**', 'docker-compose*', '.github/workflows/swarm.yml']
+    paths: ['backend/**', 'frontend/**', 'tests/swarm/**', 'scripts/**', 'infra/**', 'docker-compose*', '.github/workflows/swarm.yml']
 permissions:
   contents: read
 jobs:
@@ -15,6 +15,8 @@ jobs:
         with: {python-version: '3.12'}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - name: Install media runtime
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install fastapi uvicorn sqlalchemy 'psycopg[binary]' alembic redis celery boto3 pyyaml pytest httpx websockets pillow
       - run: PYTHONPATH=backend python -m pytest tests/swarm -q --junitxml=test-evidence/swarm.xml
       - run: npm ci && npm run test && npm run type-check && npm run lint && npm run build
@@ -31,6 +33,8 @@ jobs:
         with: {python-version: '3.12'}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - name: Install media runtime
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install fastapi uvicorn sqlalchemy 'psycopg[binary]' alembic redis celery boto3 pyyaml pytest httpx websockets pillow
       - run: docker compose -f docker-compose.yml -f docker-compose.acceptance.yml up -d --build
       - run: python scripts/fullstack_acceptance.py
