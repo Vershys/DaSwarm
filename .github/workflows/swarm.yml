@@ -6,6 +6,9 @@ on:
     paths: ['backend/**', 'frontend/**', 'tests/swarm/**', 'scripts/**', 'infra/**', 'docker-compose*', '.github/workflows/swarm.yml']
 permissions:
   contents: read
+concurrency:
+  group: swarm-acceptance-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   components:
     runs-on: ubuntu-latest
