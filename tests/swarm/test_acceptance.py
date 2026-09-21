@@ -188,6 +188,23 @@ def test_A27_secrets_rejected(service,monkeypatch):
         with pytest.raises(Forbidden):command(service,'create',object_type='Account',title='bad',metadata=metadata)
     with service.db.engine.connect() as c: assert c.execute(select(func.count()).select_from(events)).scalar()==0
 
+def test_live_discovery_patrol_reschedules(service,monkeypatch):
+    class Provider:
+        def discover(self,query,budget):
+            return []
+    monkeypatch.setattr('app.swarm.application.worker.get_provider',lambda _name: Provider())
+    started=command(service,'start_discovery',provider='wikimedia_commons',query='nature',budget=2,cadence_seconds=15)
+    worker=Worker(service)
+    assert worker.run_one(started['task_id']) is True
+    with service.db.engine.connect() as c:
+        patrols=[dict(x) for x in c.execute(select(jobs).where(jobs.c.task_type=='DISCOVER')).mappings()]
+    assert len(patrols)==2
+    future=next(x for x in patrols if x['task_id']!=started['task_id'])
+    assert future['status']=='QUEUED'
+    assert future['not_before']>time.time()
+    assert future['payload']['continuous'] is True
+    assert future['payload']['cadence_seconds']==15
+
 def test_agent_telemetry_contract(service):
     start=command(service,'discover')
     worker=Worker(service)
