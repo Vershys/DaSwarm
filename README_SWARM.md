@@ -5,7 +5,7 @@ Upstream chat, agent, browser, VNC, MongoDB and Redis features remain in the rep
 
 ## Start on Windows
 
-Open **DaSwarm-Launcher.cmd** (or the Windows CI-built **DaSwarm.exe**). Docker Desktop must be installed and running. Click **Start / Build**. The launcher extracts the complete editable project to `%LOCALAPPDATA%\DaSwarm\project`, generates local credentials, builds the containers, and opens `http://localhost:5173/swarm`.
+Download the [Windows package](https://github.com/Vershys/DaSwarm/actions/runs/35563332256/artifacts/10622928193), extract it, and open **DaSwarm.exe**. The package also includes **DaSwarm-Launcher.cmd** as an alternative. Docker Desktop must be installed and running. Click **Start / Build**. The launcher extracts the complete editable project to `%LOCALAPPDATA%\DaSwarm\project`, generates local credentials, builds the containers, and opens `http://localhost:5173/swarm`.
 
 The first build downloads dependencies and compiles MinIO; allow roughly 10–20 minutes. **Stop Services** preserves storage. Closing the launcher does not stop workers. **Configuration** edits worker concurrency and service settings; **Project / Plugins** opens all source files. Relaunching does not overwrite your modified project.
 

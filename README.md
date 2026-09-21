@@ -2,9 +2,9 @@
 
 An editable swarm backend and command center extending the pinned AI-Manus source.
 
-**[Start DaSwarm →](README_SWARM.md)** · **[Acceptance status](docs/swarm/ACCEPTANCE_STATUS.md)** · **[Windows build and tests](../../actions/workflows/swarm.yml)**
+**[Download Windows launcher](https://github.com/Vershys/DaSwarm/actions/runs/35563332256/artifacts/10622928193)** · **[Start DaSwarm →](README_SWARM.md)** · **[Acceptance status](docs/swarm/ACCEPTANCE_STATUS.md)** · **[Windows build and tests](../../actions/workflows/swarm.yml)**
 
-The Windows launcher starts the full local Docker runtime. The initial lifecycle uses simulated discovery/publishing and real FFmpeg rendering. Full P0 completion is gated by the acceptance workflow.
+The Windows launcher starts the full local Docker runtime. The initial lifecycle uses simulated discovery/publishing and real FFmpeg rendering. All 28 P0 acceptance checks pass, including the live Docker lifecycle and real-browser recovery.
 
 ---
 

@@ -1,30 +1,30 @@
 {
-  "candidate_id": "2fcac8fe-ad91-4360-a7e9-828174a7cf99",
-  "composition_id": "e1741ba8-6bf9-4d52-ad38-5ba9f40b03cb",
-  "post_id": "6ec35b22-cccd-45c2-a858-7a4c7eda2563",
-  "trace_id": "df61bb7d-58e8-4830-80b5-62aa7db4e832",
-  "run_url": "https://github.com/Vershys/DaSwarm/actions/runs/35562081034",
-  "commit": "0a4e5810fac8953e363a7f644a57c7bb4551189f",
+  "candidate_id": "06561f39-af92-4868-afdf-78aa0744ae9a",
+  "composition_id": "5c24e65c-8565-4834-94eb-d216ffc1927c",
+  "post_id": "2d262e98-0468-443e-a442-eb76808a97f7",
+  "trace_id": "c99dfa49-de0e-4a32-92d6-e1613a3773b5",
+  "run_url": "https://github.com/Vershys/DaSwarm/actions/runs/35563332256",
+  "commit": "c50a547b053187a077c2712e2dbc61f2325d8556",
   "upstream_pin": "Simpleyyt/ai-manus\n496547ce6a5f599333138342ec126a7ea8ec9646",
   "task_ids": [
-    "04cd5d2d-3e8a-47b1-9dd2-c12e22fb7c41",
-    "1619de2f-c7d1-4fc7-9c5e-d05343f40863",
-    "1e6fb0da-b4b7-4cfa-a53e-e4721a7c5fa6",
-    "39e17f60-0e6a-4c83-b93e-336418267a51",
-    "5416802c-2b2d-43c3-b961-9981b5d81f58",
-    "5b9d637f-4b86-499a-9683-619cd8abca30",
-    "7589914e-a4d0-44b1-aa4d-19c550d69ed2",
-    "8126168a-beb4-4485-a413-cac966c0ac91",
-    "beb11085-9839-4dd7-9cd3-1eb197ab00fd",
-    "cb44cf54-26b7-4c00-9945-e3fda688993b",
-    "cee9d7c4-f5b3-4cd9-a351-017f685cb2de"
+    "0f403730-72a4-4ffb-a4ce-71caa3ffa1fe",
+    "1bab66f2-2734-4df9-bd6c-884abee219e6",
+    "2a4df206-bad6-4557-bc3f-06baa15d546d",
+    "3908597a-7bdb-4bff-80cb-64e85a4399a5",
+    "67abe397-2937-4595-bb25-bc82c0304e89",
+    "6c59a8a8-483e-4292-b96b-074dee50d6ec",
+    "7ac024a4-6582-4ca8-bba3-d2fbe0fbe13f",
+    "828e659d-8fed-4708-bf21-7b4620adf8ac",
+    "894a6381-d3a5-46f6-8b93-a8f70dd65cc9",
+    "9420d03f-e35a-4eca-9eb4-973c235387c7",
+    "f6799cc4-1002-45b8-b904-05378d002e3a"
   ],
   "metric_snapshot_ids": [
-    "41cc6630-60cd-4915-af54-340ad73a6e96"
+    "0135a7b4-ff7e-48df-a53b-b75ff342fd72"
   ],
   "audience_update_event_ids": [
-    "1bc5a5ae-37ab-4113-bcad-0db5edcdce07"
+    "15a77b31-5343-4a62-9804-af0bb8617253"
   ],
   "event_count": 130,
-  "full_trace_artifact": "https://github.com/Vershys/DaSwarm/actions/runs/35562081034/artifacts/10622712456"
+  "full_trace_artifact": "https://github.com/Vershys/DaSwarm/actions/runs/35563332256/artifacts/10623385756"
 }

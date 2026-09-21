@@ -1,0 +1,13 @@
+{
+  "source_commit": "c50a547b053187a077c2712e2dbc61f2325d8556",
+  "github_run": "https://github.com/Vershys/DaSwarm/actions/runs/35563332256",
+  "download": "https://github.com/Vershys/DaSwarm/actions/runs/35563332256/artifacts/10622928193",
+  "windows_ui_launch": "PASS",
+  "source_bundle_file_count": 633,
+  "windows_linux_source_bytes_match": true,
+  "linux_shell_line_endings": "PASS",
+  "sha256": {
+    "DaSwarm.exe": "90b9bdca12b2153bd1268fc6f22314754ea4b0c7d28752f0484e6b27a1b55b37",
+    "DaSwarm-Launcher.cmd": "bed8e2bdf82d7c589ae3cb6e91c073ef6c9a7f9754d29741f4c556810537b1ec"
+  }
+}
