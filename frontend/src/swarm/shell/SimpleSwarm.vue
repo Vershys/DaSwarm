@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { api, useControl } from '../stores/control'
 import type { SwarmObject } from '../types'
+import AgentOps from './AgentOps.vue'
 
 const s = useControl()
 
@@ -144,6 +145,18 @@ async function choose(o:SwarmObject) {
   try { await s.select({objectId:o.id,objectType:o.object_type,version:o.version}) } catch {}
 }
 
+async function inspectAgentTarget(id:string) {
+  try {
+    const obj=await api<SwarmObject>('/objects/'+id)
+    if(obj.object_type==='Candidate'||obj.object_type==='Composition'){
+      await choose(obj)
+      requestAnimationFrame(()=>document.getElementById('work-area')?.scrollIntoView({behavior:'smooth',block:'start'}))
+    } else {
+      message.value=`${obj.object_type}: ${obj.title} · ${obj.status}`
+    }
+  } catch(e) { message.value=String(e) }
+}
+
 async function startDiscovery() {
   actionBusy.value = true
   message.value = 'Starting live discovery…'
@@ -237,6 +250,8 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
         </div>
       </section>
 
+      <AgentOps @inspect="inspectAgentTarget" />
+
       <section class="start-grid">
         <article class="action-card primary-card live-discovery">
           <span class="step">LIVE DISCOVERY</span>
@@ -272,7 +287,7 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
         </div>
       </section>
 
-      <section class="work-area">
+      <section id="work-area" class="work-area">
         <div class="section-heading">
           <div><p class="eyebrow">YOUR WORK</p><h2>{{latestCandidate?'Current videos':'Nothing here yet'}}</h2></div>
           <button class="quiet" @click="refreshData">Refresh</button>
