@@ -1,5 +1,6 @@
 """Durable leases, fencing, bounded retries and deterministic fixture pipeline."""
 import os
+import logging
 import random
 import threading
 import time
@@ -65,11 +66,12 @@ class Worker:
                 c.execute(jobs.update().where(jobs.c.task_id==task['id']).values(status='SUCCEEDED',lease_until=0))
             return True
         except Exception as exc:
+            logging.getLogger('swarm.worker').warning('Task %s (%s) failed: %s', job['task_id'], job['task_type'], type(exc).__name__)
             with self.s.transaction() as c:
                 current=row(c.execute(select(jobs).where(jobs.c.task_id==job['task_id'])))
                 if current['lease_token']!=job['lease_token'] or current['status']!='RUNNING': return False
                 task=self.s.get(c,job['task_id'])
-                task,ev=self.s.change(c,task['id'],task['version'],job['trace_id'],job['causation_event_id'],'TASK_RETRY_SCHEDULED',status='WAITING_RETRY')
+                task,ev=self.s.change(c,task['id'],task['version'],job['trace_id'],job['causation_event_id'],'TASK_RETRY_SCHEDULED',status='WAITING_RETRY',metadata={**task['metadata'],'last_error_class':type(exc).__name__})
                 status='WAITING_RETRY'
                 if job['attempt']>=job['max_attempts']:
                     task,ev=self.s.change(c,task['id'],task['version'],job['trace_id'],ev['event_id'],'TASK_DEAD_LETTERED',status='DEAD_LETTER');status='DEAD_LETTER'

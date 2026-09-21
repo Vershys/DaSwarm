@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-test('A06 A07 A10 A23 live discovery, linked selection and replay',async({page})=>{
+test('A06 A07 A10 A23 live discovery, linked selection and replay',async({page,request})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
   await page.goto('/swarm')
   await expect(page.locator('.connection')).toHaveText('● CONNECTED')
@@ -26,7 +26,12 @@ test('A06 A07 A10 A23 live discovery, linked selection and replay',async({page})
   await expect(page.locator('.replay-banner')).toHaveCount(0)
   // Offline/online forces reconnect; a new event must arrive in the activity stream.
   await page.context().setOffline(true)
+  const gapTitle='Reconnect gap '+Date.now()
+  const gap=await request.post('/api/v1/swarm/commands/execute',{data:{action:'discover',idempotency_key:crypto.randomUUID(),payload:{title:gapTitle}}})
+  expect(gap.ok()).toBeTruthy()
   await page.context().setOffline(false)
   await expect(page.locator('.connection')).toHaveText('● CONNECTED')
+  await page.getByRole('button',{name:'Content Universe',exact:false}).click()
+  await expect(page.getByRole('row').filter({hasText:gapTitle})).toHaveCount(1)
   expect(errors).toEqual([])
 })
