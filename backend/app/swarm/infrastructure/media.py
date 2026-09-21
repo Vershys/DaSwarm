@@ -69,7 +69,7 @@ class Media:
                 url,
                 follow_redirects=True,
                 timeout=httpx.Timeout(15,read=120),
-                headers={'User-Agent':os.environ.get('SWARM_HTTP_USER_AGENT','DaSwarm/0.2 live media ingestion')},
+                headers={'User-Agent':os.environ.get('SWARM_HTTP_USER_AGENT','DaSwarmBot/0.2 (https://github.com/Vershys/DaSwarm; local operator)')},
             ) as response:
                 response.raise_for_status()
                 length=response.headers.get('content-length')
