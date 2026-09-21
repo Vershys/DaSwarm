@@ -1,0 +1,199 @@
+project:
+  name: Manu-Swarm-Test
+  version: "0.2"
+  module: command_center
+  paradigm: object_centric_operational_intelligence
+
+control_plane_invariants:
+  - every_visual_entity_is_a_swarm_object
+  - canonical_object_ids
+  - explicit_relationship_edges
+  - state_changes_emit_events
+  - causal_trace_metadata_required
+  - shared_selection_filter_time_context
+  - persistent_object_inspector
+  - alternate_dense_graph_views
+  - live_and_replay_modes
+  - alerts_are_objects
+  - saved_investigations
+  - no_disconnected_kpi_wall
+  - scoped_batched_realtime_updates
+  - never_render_global_graph_blindly
+  - posts_trace_discovery_to_learning
+
+ui_shell:
+  top_command_bar:
+    items:
+      - global_search
+      - workspace_breadcrumb
+      - live_replay_toggle
+      - ingestion_rate
+      - queue_lag
+      - active_workers
+      - active_accounts
+      - alerts
+      - compute_budget
+      - storage
+  navigation:
+    - overview
+    - operations
+    - content_universe
+    - graph
+    - trends
+    - accounts
+    - synthesis
+    - experiments
+    - infrastructure
+    - audit_replay
+  context_panel:
+    supports:
+      - filters
+      - saved_views
+      - histograms
+      - layers
+      - relations
+  object_inspector:
+    tabs:
+      - summary
+      - links
+      - timeline
+      - metrics
+      - provenance
+      - runs
+      - assets
+      - raw
+  time_rail:
+    modes: [LIVE, REPLAY]
+    supports:
+      - event_density
+      - cursor_scrubbing
+      - range_selection
+      - historical_playback
+
+swarm_object_types:
+  - Candidate
+  - ContentAtom
+  - Composition
+  - Account
+  - AudienceGenome
+  - Source
+  - Creator
+  - TrendCluster
+  - ViralMotif
+  - Task
+  - AgentRun
+  - Worker
+  - Sandbox
+  - MediaAsset
+  - Post
+  - MetricSnapshot
+  - Experiment
+  - Alert
+  - Decision
+  - Annotation
+  - SavedInvestigation
+
+edge_types:
+  - FOUND_BY
+  - SOURCED_FROM
+  - HAS_ATOM
+  - MEMBER_OF_TREND
+  - MATCHES_ACCOUNT
+  - ROUTED_TO
+  - DERIVED_FROM
+  - USES_ATOM
+  - GENERATED_BY
+  - EXECUTED_BY
+  - PUBLISHED_AS
+  - MEASURED_BY
+  - PART_OF_EXPERIMENT
+  - TRIGGERED
+  - CAUSED
+  - UPDATED_MODEL
+  - SIMILAR_TO
+
+event_ledger:
+  required_fields:
+    - event_id
+    - sequence
+    - event_type
+    - timestamp
+    - actor_type
+    - trace_id
+    - correlation_id
+    - causation_id
+    - payload
+    - schema_version
+
+storage:
+  existing:
+    mongodb: ai_manus_sessions_and_agent_state
+    redis: existing_coordination
+  swarm:
+    postgres_pgvector:
+      - objects
+      - edges
+      - durable_events
+      - experiments
+      - saved_investigations
+      - moderate_scale_embeddings
+    redis_streams:
+      - realtime_fanout
+      - worker_heartbeat
+      - queue_events
+    minio:
+      - source_media
+      - thumbnails
+      - compositions
+      - derived_assets
+    clickhouse:
+      phase: optional_2
+      purpose:
+        - high_volume_metrics
+        - telemetry
+        - aggregation
+
+frontend:
+  upstream:
+    - vue3
+    - typescript
+    - vite
+    - vue_router
+    - axios
+    - mitt
+    - novnc
+    - monaco
+    - reka_ui
+  additions:
+    - pinia
+    - tanstack_vue_query
+    - apache_echarts
+    - sigma_js
+    - graphology
+    - maplibre_gl
+    - tanstack_virtual
+    - hls_js
+
+shared_context:
+  selection:
+    fields: [primary, selected, hovered, pinned]
+  time:
+    fields: [mode, range_start, range_end, cursor]
+  filters:
+    serializable: true
+  workspace:
+    saveable: true
+
+api_prefix: /api/v1/swarm
+websocket: /api/v1/ws/swarm
+
+implementation_phases:
+  - UI_0_shell
+  - UI_1_object_substrate
+  - UI_2_event_substrate
+  - UI_3_operational_views
+  - UI_4_intelligence_views
+  - UI_5_graph
+  - UI_6_synthesis
+  - UI_7_audit_replay
+  - UI_8_experiments

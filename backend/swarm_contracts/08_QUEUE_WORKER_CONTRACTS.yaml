@@ -1,0 +1,44 @@
+global_delivery: at_least_once
+required_task_fields:
+- task_id
+- task_type
+- object_ref
+- trace_id
+- correlation_id
+- causation_event_id
+- idempotency_key
+- priority
+- attempt
+- max_attempts
+- resource_class
+- created_at
+- not_before
+retry:
+  strategy: exponential_backoff_with_jitter
+  default_max_attempts: 5
+  dead_letter_after_exhaustion: true
+worker:
+  lease_required: true
+  heartbeat_required: true
+  cancellation_token: true
+  idempotency_record_required: true
+task_to_resource:
+  DISCOVER: browser
+  FETCH_METADATA: io
+  NORMALIZE: io
+  DEDUPLICATE: cpu_media
+  ANALYZE_TEXT: llm
+  ANALYZE_VIDEO: gpu_media
+  EMBED: gpu_media
+  TRANSCRIBE: gpu_media
+  ATOMIZE: gpu_media
+  CLUSTER: cpu_media
+  ROUTE: llm
+  COMPOSE: llm
+  RENDER: render
+  REVIEW: llm
+  PUBLISH: publisher
+  COLLECT_METRICS: io
+  UPDATE_MODEL: cpu_media
+side_effect_tasks:
+- PUBLISH

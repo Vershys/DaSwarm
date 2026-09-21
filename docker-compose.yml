@@ -1,0 +1,420 @@
+services:
+  frontend:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      x-bake:
+        platforms:
+        - linux/amd64
+        - linux/arm64
+    ports:
+    - 127.0.0.1:5173:80
+    depends_on:
+    - backend
+    restart: unless-stopped
+    networks:
+    - manus-network
+    environment:
+    - BACKEND_URL=http://backend:8000
+  backend:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      x-bake:
+        platforms:
+        - linux/amd64
+        - linux/arm64
+    depends_on:
+      sandbox:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - swarm_media:/var/lib/swarm/media
+    networks:
+    - manus-network
+    env_file:
+    - path: .env
+      required: false
+    environment:
+      API_KEY: ${API_KEY:-simulation-placeholder}
+      API_BASE: ${API_BASE:-http://mockserver:8090/v1}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+      SANDBOX_ADDRESS: sandbox
+      SWARM_ENABLED: ${SWARM_ENABLED:-true}
+      SWARM_POSTGRES_DSN: postgresql+psycopg://manus:${SWARM_DB_PASSWORD:-local-development-only}@postgres:5432/manu_swarm
+      SWARM_REDIS_URL: redis://redis:6379/1
+      SWARM_OBJECT_STORE_ENDPOINT: http://minio:9000
+      SWARM_OBJECT_STORE_BUCKET: manu-swarm
+      SWARM_OBJECT_STORE_ACCESS_KEY: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      SWARM_OBJECT_STORE_SECRET_KEY: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+      SWARM_MEDIA_ROOT: /var/lib/swarm/media
+      SWARM_PUBLISH_ENABLED: 'false'
+      SWARM_AUTOPUBLISH_ENABLED: 'false'
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8000/api/v1/config/frontend
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  sandbox:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-sandbox:${IMAGE_TAG:-latest}
+    build:
+      context: ./sandbox
+      dockerfile: Dockerfile
+      x-bake:
+        platforms:
+        - linux/amd64
+        - linux/arm64
+    restart: unless-stopped
+    networks:
+    - manus-network
+  mongodb:
+    image: mongo:7.0
+    volumes:
+    - mongodb_data:/data/db
+    restart: unless-stopped
+    networks:
+    - manus-network
+  redis:
+    image: redis:7.0
+    restart: unless-stopped
+    networks:
+    - manus-network
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    volumes:
+    - swarm_redis:/data
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: manu_swarm
+      POSTGRES_USER: manus
+      POSTGRES_PASSWORD: ${SWARM_DB_PASSWORD:-local-development-only}
+    volumes:
+    - swarm_postgres:/var/lib/postgresql/data
+    networks:
+    - manus-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U manus -d manu_swarm
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command:
+    - server
+    - /data
+    - --console-address
+    - :9001
+    environment:
+      MINIO_ROOT_USER: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      MINIO_ROOT_PASSWORD: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+    volumes:
+    - swarm_minio:/data
+    networks:
+    - manus-network
+    restart: unless-stopped
+  mockserver:
+    build:
+      context: ./mockserver
+    networks:
+    - manus-network
+    restart: unless-stopped
+  swarm_worker_io:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+    environment:
+      API_KEY: ${API_KEY:-simulation-placeholder}
+      API_BASE: ${API_BASE:-http://mockserver:8090/v1}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+      SANDBOX_ADDRESS: sandbox
+      SWARM_ENABLED: ${SWARM_ENABLED:-true}
+      SWARM_POSTGRES_DSN: postgresql+psycopg://manus:${SWARM_DB_PASSWORD:-local-development-only}@postgres:5432/manu_swarm
+      SWARM_REDIS_URL: redis://redis:6379/1
+      SWARM_OBJECT_STORE_ENDPOINT: http://minio:9000
+      SWARM_OBJECT_STORE_BUCKET: manu-swarm
+      SWARM_OBJECT_STORE_ACCESS_KEY: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      SWARM_OBJECT_STORE_SECRET_KEY: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+      SWARM_MEDIA_ROOT: /var/lib/swarm/media
+      SWARM_PUBLISH_ENABLED: 'false'
+      SWARM_AUTOPUBLISH_ENABLED: 'false'
+    env_file:
+    - path: .env
+      required: false
+    networks:
+    - manus-network
+    volumes:
+    - swarm_media:/var/lib/swarm/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+    - uv
+    - run
+    - celery
+    - -A
+    - app.swarm.infrastructure.dispatch:celery
+    - worker
+    - --loglevel=WARNING
+    - --queues=swarm.io,swarm.cpu_media,swarm.llm
+    - --concurrency=${CELERY_CONCURRENCY:-4}
+  swarm_worker_browser:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+    environment:
+      API_KEY: ${API_KEY:-simulation-placeholder}
+      API_BASE: ${API_BASE:-http://mockserver:8090/v1}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+      SANDBOX_ADDRESS: sandbox
+      SWARM_ENABLED: ${SWARM_ENABLED:-true}
+      SWARM_POSTGRES_DSN: postgresql+psycopg://manus:${SWARM_DB_PASSWORD:-local-development-only}@postgres:5432/manu_swarm
+      SWARM_REDIS_URL: redis://redis:6379/1
+      SWARM_OBJECT_STORE_ENDPOINT: http://minio:9000
+      SWARM_OBJECT_STORE_BUCKET: manu-swarm
+      SWARM_OBJECT_STORE_ACCESS_KEY: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      SWARM_OBJECT_STORE_SECRET_KEY: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+      SWARM_MEDIA_ROOT: /var/lib/swarm/media
+      SWARM_PUBLISH_ENABLED: 'false'
+      SWARM_AUTOPUBLISH_ENABLED: 'false'
+    env_file:
+    - path: .env
+      required: false
+    networks:
+    - manus-network
+    volumes:
+    - swarm_media:/var/lib/swarm/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+    - uv
+    - run
+    - celery
+    - -A
+    - app.swarm.infrastructure.dispatch:celery
+    - worker
+    - --loglevel=WARNING
+    - --queues=swarm.browser
+    - --concurrency=${SWARM_BROWSER_CONCURRENCY:-4}
+  swarm_worker_gpu:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+    environment:
+      API_KEY: ${API_KEY:-simulation-placeholder}
+      API_BASE: ${API_BASE:-http://mockserver:8090/v1}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+      SANDBOX_ADDRESS: sandbox
+      SWARM_ENABLED: ${SWARM_ENABLED:-true}
+      SWARM_POSTGRES_DSN: postgresql+psycopg://manus:${SWARM_DB_PASSWORD:-local-development-only}@postgres:5432/manu_swarm
+      SWARM_REDIS_URL: redis://redis:6379/1
+      SWARM_OBJECT_STORE_ENDPOINT: http://minio:9000
+      SWARM_OBJECT_STORE_BUCKET: manu-swarm
+      SWARM_OBJECT_STORE_ACCESS_KEY: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      SWARM_OBJECT_STORE_SECRET_KEY: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+      SWARM_MEDIA_ROOT: /var/lib/swarm/media
+      SWARM_PUBLISH_ENABLED: 'false'
+      SWARM_AUTOPUBLISH_ENABLED: 'false'
+    env_file:
+    - path: .env
+      required: false
+    networks:
+    - manus-network
+    volumes:
+    - swarm_media:/var/lib/swarm/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+    - uv
+    - run
+    - celery
+    - -A
+    - app.swarm.infrastructure.dispatch:celery
+    - worker
+    - --loglevel=WARNING
+    - --queues=swarm.gpu_media
+    - --concurrency=${SWARM_GPU_CONCURRENCY:-1}
+  swarm_worker_render:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+    environment:
+      API_KEY: ${API_KEY:-simulation-placeholder}
+      API_BASE: ${API_BASE:-http://mockserver:8090/v1}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+      SANDBOX_ADDRESS: sandbox
+      SWARM_ENABLED: ${SWARM_ENABLED:-true}
+      SWARM_POSTGRES_DSN: postgresql+psycopg://manus:${SWARM_DB_PASSWORD:-local-development-only}@postgres:5432/manu_swarm
+      SWARM_REDIS_URL: redis://redis:6379/1
+      SWARM_OBJECT_STORE_ENDPOINT: http://minio:9000
+      SWARM_OBJECT_STORE_BUCKET: manu-swarm
+      SWARM_OBJECT_STORE_ACCESS_KEY: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      SWARM_OBJECT_STORE_SECRET_KEY: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+      SWARM_MEDIA_ROOT: /var/lib/swarm/media
+      SWARM_PUBLISH_ENABLED: 'false'
+      SWARM_AUTOPUBLISH_ENABLED: 'false'
+    env_file:
+    - path: .env
+      required: false
+    networks:
+    - manus-network
+    volumes:
+    - swarm_media:/var/lib/swarm/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+    - uv
+    - run
+    - celery
+    - -A
+    - app.swarm.infrastructure.dispatch:celery
+    - worker
+    - --loglevel=WARNING
+    - --queues=swarm.render
+    - --concurrency=${SWARM_RENDER_CONCURRENCY:-1}
+  swarm_worker_publisher:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+    environment:
+      API_KEY: ${API_KEY:-simulation-placeholder}
+      API_BASE: ${API_BASE:-http://mockserver:8090/v1}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+      SANDBOX_ADDRESS: sandbox
+      SWARM_ENABLED: ${SWARM_ENABLED:-true}
+      SWARM_POSTGRES_DSN: postgresql+psycopg://manus:${SWARM_DB_PASSWORD:-local-development-only}@postgres:5432/manu_swarm
+      SWARM_REDIS_URL: redis://redis:6379/1
+      SWARM_OBJECT_STORE_ENDPOINT: http://minio:9000
+      SWARM_OBJECT_STORE_BUCKET: manu-swarm
+      SWARM_OBJECT_STORE_ACCESS_KEY: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      SWARM_OBJECT_STORE_SECRET_KEY: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+      SWARM_MEDIA_ROOT: /var/lib/swarm/media
+      SWARM_PUBLISH_ENABLED: 'false'
+      SWARM_AUTOPUBLISH_ENABLED: 'false'
+    env_file:
+    - path: .env
+      required: false
+    networks:
+    - manus-network
+    volumes:
+    - swarm_media:/var/lib/swarm/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+    - uv
+    - run
+    - celery
+    - -A
+    - app.swarm.infrastructure.dispatch:celery
+    - worker
+    - --loglevel=WARNING
+    - --queues=swarm.publisher
+    - --concurrency=1
+  swarm_dispatcher:
+    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+    environment:
+      API_KEY: ${API_KEY:-simulation-placeholder}
+      API_BASE: ${API_BASE:-http://mockserver:8090/v1}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+      SANDBOX_ADDRESS: sandbox
+      SWARM_ENABLED: ${SWARM_ENABLED:-true}
+      SWARM_POSTGRES_DSN: postgresql+psycopg://manus:${SWARM_DB_PASSWORD:-local-development-only}@postgres:5432/manu_swarm
+      SWARM_REDIS_URL: redis://redis:6379/1
+      SWARM_OBJECT_STORE_ENDPOINT: http://minio:9000
+      SWARM_OBJECT_STORE_BUCKET: manu-swarm
+      SWARM_OBJECT_STORE_ACCESS_KEY: ${SWARM_OBJECT_STORE_ACCESS_KEY:-manus-local}
+      SWARM_OBJECT_STORE_SECRET_KEY: ${SWARM_OBJECT_STORE_SECRET_KEY:-local-development-only}
+      SWARM_MEDIA_ROOT: /var/lib/swarm/media
+      SWARM_PUBLISH_ENABLED: 'false'
+      SWARM_AUTOPUBLISH_ENABLED: 'false'
+    env_file:
+    - path: .env
+      required: false
+    networks:
+    - manus-network
+    volumes:
+    - swarm_media:/var/lib/swarm/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+    - uv
+    - run
+    - python
+    - -m
+    - app.swarm.infrastructure.dispatch
+volumes:
+  mongodb_data:
+    name: manus-mongodb-data
+  swarm_postgres: {}
+  swarm_minio: {}
+  swarm_media: {}
+  swarm_redis: {}
+networks:
+  manus-network:
+    name: manus-network
+    driver: bridge

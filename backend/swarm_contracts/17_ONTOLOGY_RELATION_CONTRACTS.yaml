@@ -1,0 +1,120 @@
+FOUND_BY:
+  from:
+  - Candidate
+  to:
+  - AgentRun
+  - Source
+SOURCED_FROM:
+  from:
+  - Candidate
+  - MediaAsset
+  to:
+  - Source
+  - Creator
+HAS_ATOM:
+  from:
+  - Candidate
+  to:
+  - ContentAtom
+MEMBER_OF_TREND:
+  from:
+  - Candidate
+  - ContentAtom
+  to:
+  - TrendCluster
+MATCHES_ACCOUNT:
+  from:
+  - Candidate
+  - Composition
+  - TrendCluster
+  to:
+  - Account
+ROUTED_TO:
+  from:
+  - Candidate
+  - Composition
+  to:
+  - Account
+DERIVED_FROM:
+  from:
+  - Composition
+  - MediaAsset
+  to:
+  - Candidate
+  - ContentAtom
+  - MediaAsset
+USES_ATOM:
+  from:
+  - Composition
+  to:
+  - ContentAtom
+GENERATED_BY:
+  from:
+  - Composition
+  - MediaAsset
+  - Decision
+  to:
+  - AgentRun
+  - Worker
+EXECUTED_BY:
+  from:
+  - Task
+  - AgentRun
+  to:
+  - Worker
+PUBLISHED_AS:
+  from:
+  - Candidate
+  - Composition
+  to:
+  - Post
+MEASURED_BY:
+  from:
+  - Post
+  - Account
+  to:
+  - MetricSnapshot
+PART_OF_EXPERIMENT:
+  from:
+  - Post
+  - Composition
+  - Account
+  to:
+  - Experiment
+TRIGGERED:
+  from:
+  - Alert
+  - Decision
+  - MetricSnapshot
+  - TrendCluster
+  to:
+  - Task
+  - Decision
+  - Experiment
+CAUSED:
+  from:
+  - Task
+  - Decision
+  - Alert
+  - Post
+  to:
+  - Task
+  - Decision
+  - Alert
+  - Post
+UPDATED_MODEL:
+  from:
+  - MetricSnapshot
+  - Experiment
+  - Decision
+  to:
+  - AudienceGenome
+SIMILAR_TO:
+  from:
+  - Candidate
+  - ContentAtom
+  - Composition
+  to:
+  - Candidate
+  - ContentAtom
+  - Composition

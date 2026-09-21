@@ -1,0 +1,121 @@
+project:
+  name: Manu-Swarm-Test
+  status: implementation_ready
+  upstream:
+    repository: Simpleyyt/ai-manus
+    pinned_commit: 496547ce6a5f599333138342ec126a7ea8ec9646
+  backend: FastAPI/Python
+  frontend: Vue3/TypeScript/Vite
+object_types:
+- Candidate
+- ContentAtom
+- Composition
+- Account
+- AudienceGenome
+- Source
+- Creator
+- TrendCluster
+- ViralMotif
+- Task
+- AgentRun
+- Worker
+- Sandbox
+- MediaAsset
+- Post
+- MetricSnapshot
+- Experiment
+- Alert
+- Decision
+- Annotation
+- SavedInvestigation
+edge_types:
+- FOUND_BY
+- SOURCED_FROM
+- HAS_ATOM
+- MEMBER_OF_TREND
+- MATCHES_ACCOUNT
+- ROUTED_TO
+- DERIVED_FROM
+- USES_ATOM
+- GENERATED_BY
+- EXECUTED_BY
+- PUBLISHED_AS
+- MEASURED_BY
+- PART_OF_EXPERIMENT
+- TRIGGERED
+- CAUSED
+- UPDATED_MODEL
+- SIMILAR_TO
+resource_classes:
+- io
+- browser
+- cpu_media
+- gpu_media
+- llm
+- render
+- publisher
+queues:
+- DISCOVER
+- FETCH_METADATA
+- NORMALIZE
+- DEDUPLICATE
+- ANALYZE_TEXT
+- ANALYZE_VIDEO
+- EMBED
+- TRANSCRIBE
+- ATOMIZE
+- CLUSTER
+- ROUTE
+- COMPOSE
+- RENDER
+- REVIEW
+- PUBLISH
+- COLLECT_METRICS
+- UPDATE_MODEL
+feature_flags:
+- SWARM_ENABLED
+- SWARM_REALTIME_ENABLED
+- SWARM_GRAPH_ENABLED
+- SWARM_SYNTHESIS_ENABLED
+- SWARM_REPLAY_ENABLED
+- SWARM_PUBLISH_ENABLED
+- SWARM_AUTOPUBLISH_ENABLED
+- SWARM_GENERATIVE_MEDIA_ENABLED
+- SWARM_CLICKHOUSE_ENABLED
+storage:
+  postgres_pgvector:
+  - domain_state
+  - edges
+  - event_ledger
+  - execution_intents
+  - projections
+  - experiments
+  - saved_investigations
+  redis:
+  - broker
+  - realtime_streams
+  - worker_heartbeats
+  - ephemeral_cache
+  minio:
+  - source_media
+  - derived_media
+  - transcripts
+  - thumbnails
+  - renders
+  - manifests
+  mongodb:
+  - upstream_ai_manus_state
+  clickhouse:
+    required: false
+    phase: later
+required_ui_workspaces:
+- Overview
+- Operations
+- Content Universe
+- Graph
+- Trends
+- Accounts
+- Synthesis
+- Experiments
+- Infrastructure
+- Audit & Replay

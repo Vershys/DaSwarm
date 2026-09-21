@@ -1,0 +1,164 @@
+project:
+  name: Manu-Swarm-Test
+  stage: theory_freeze
+  substrate: Simpleyyt/ai-manus
+  mission: >
+    Persistent autonomous media-intelligence, routing, synthesis, publishing,
+    and learning system.
+
+invariants:
+  - agents_accounts_workers_are_separate
+  - discovery_eligibility_is_not_publish_eligibility
+  - candidates_are_structured_state
+  - videos_decompose_into_content_atoms
+  - routing_is_account_relative
+  - duration_and_pacing_are_learned
+  - synthesis_is_first_class
+  - deterministic_execution_preferred_for_brittle_actions
+  - shared_memory_is_mandatory
+  - optimize_long_run_account_value
+
+roles:
+  director:
+    cadence: slow
+    responsibilities:
+      - strategy
+      - resource_allocation
+      - exploration_budget
+      - gap_detection
+      - account_proposals
+  discovery:
+    - search_scout
+    - platform_scout
+    - creator_scout
+    - breakout_scout
+    - cross_platform_scout
+    - archive_scout
+    - semantic_scout
+    - trend_clusterer
+    - source_scout
+    - gap_scout
+  analysis:
+    - multimodal_analyzer
+    - affect_estimator
+    - temporal_saliency
+    - dedupe
+  synthesis:
+    - highlight_miner
+    - atomizer
+    - motif_detector
+    - story_architect
+    - composer
+    - variant_generator
+    - bridge_generator
+    - retention_critic
+    - loop_designer
+    - quality_controller
+  distribution:
+    - router
+    - publisher_worker
+  science:
+    - evaluator
+    - experiment_manager
+    - audience_model_updater
+
+objects:
+  candidate:
+    states: [discovered, analyzed, routed, held, composed, published, archived]
+  content_atom:
+    core_scores: [saliency, arousal, novelty, payoff, setup_dependency]
+  composition:
+    states: [draft, review, approved, published, rejected]
+  account:
+    durable: true
+    worker_bound: false
+  audience_genome:
+    online_updated: true
+  trend_cluster:
+    tracks: [velocity, freshness, saturation, platform_spread]
+  viral_motif:
+    temporal_roles: [hook, setup, escalation, payoff, closure]
+
+route_states:
+  - DIRECT_PUBLISH_CANDIDATE
+  - SEND_TO_SYNTHESIS
+  - HUMAN_REVIEW
+  - REFERENCE_ONLY
+  - ARCHIVE
+  - NO_MATCH
+  - PROPOSE_NEW_ACCOUNT
+
+provenance_states:
+  - OWNED
+  - CREATOR_PERMISSION
+  - LICENSED
+  - PUBLIC_DOMAIN
+  - UNKNOWN
+  - RESTRICTED
+
+queues:
+  - DISCOVER
+  - FETCH_METADATA
+  - ANALYZE_TEXT
+  - ANALYZE_VIDEO
+  - EMBED
+  - TRANSCRIBE
+  - CLUSTER
+  - ROUTE
+  - ATOMIZE
+  - COMPOSE
+  - RENDER
+  - REVIEW
+  - PUBLISH
+  - COLLECT_METRICS
+  - UPDATE_MODEL
+
+v1:
+  accounts: 3-5
+  candidates_per_day: 50-500
+  real_publishing_required: false
+  required_outputs:
+    - candidate_stream
+    - trend_clusters
+    - breakout_scores
+    - affect_profiles
+    - highlight_timelines
+    - content_atoms
+    - account_routing
+    - synthesis_proposals
+    - provenance_states
+    - decision_explanations
+
+synthesis_objective:
+  maximize:
+    - meaningful_information_per_second
+    - salient_event_density
+    - early_interest
+    - payoff_strength
+    - continuity
+    - emotional_trajectory
+    - rewatchability
+    - account_fit
+  minimize:
+    - dead_time
+    - redundant_setup
+    - context_loss
+    - repetition
+    - visual_discontinuity
+
+global_utility:
+  positive:
+    - growth
+    - retention
+    - sharing
+    - audience_fit
+    - novelty
+    - source_diversity
+    - learning_value
+  negative:
+    - duplication
+    - fatigue
+    - low_quality
+    - operational_cost
+    - moderation_failure
+    - provenance_risk

@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    purpose: swarm domain state, event ledger, pgvector
+  minio:
+    image: minio/minio
+    purpose: media/object storage
+  swarm_worker_io:
+    base: upstream backend image
+    concurrency: configurable
+  swarm_worker_browser:
+    base: upstream backend image
+    concurrency: 4
+  swarm_worker_gpu:
+    base: upstream backend image
+    concurrency: 1
+    gpu: optional runtime device mapping
+  swarm_worker_render:
+    base: upstream backend image + ffmpeg
+    concurrency: 1
+  swarm_worker_publisher:
+    base: upstream backend image
+    concurrency: 1
+existing_services_reused:
+- frontend
+- backend
+- sandbox
+- mongodb
+- redis
+optional_later:
+- clickhouse
+development_defaults:
+  simulated_source_adapter: true
+  simulated_platform_adapter: true
+  real_publishing: false

@@ -1,0 +1,156 @@
+Candidate:
+  initial: DISCOVERED
+  terminal:
+  - PUBLISHED
+  - ARCHIVED
+  transitions:
+    DISCOVERED:
+    - NORMALIZED
+    - ARCHIVED
+    - FAILED
+    NORMALIZED:
+    - DEDUPED
+    - ARCHIVED
+    - FAILED
+    DEDUPED:
+    - ANALYZING
+    - ARCHIVED
+    - FAILED
+    ANALYZING:
+    - ANALYZED
+    - FAILED
+    ANALYZED:
+    - ROUTED
+    - HELD
+    - ARCHIVED
+    - FAILED
+    ROUTED:
+    - SYNTHESIS_QUEUED
+    - PUBLISH_QUEUED
+    - REVIEW_PENDING
+    - HELD
+    - ARCHIVED
+    - FAILED
+    HELD:
+    - ROUTED
+    - SYNTHESIS_QUEUED
+    - PUBLISH_QUEUED
+    - REVIEW_PENDING
+    - ARCHIVED
+    SYNTHESIS_QUEUED:
+    - COMPOSED
+    - FAILED
+    COMPOSED:
+    - PUBLISH_QUEUED
+    - HELD
+    - ARCHIVED
+    - FAILED
+    PUBLISH_QUEUED:
+    - PUBLISHED
+    - HELD
+    - FAILED
+    PUBLISHED: []
+    ARCHIVED: []
+    FAILED:
+    - ANALYZING
+    - ROUTED
+    - SYNTHESIS_QUEUED
+    - PUBLISH_QUEUED
+    - ARCHIVED
+    REVIEW_PENDING:
+    - PUBLISH_QUEUED
+    - SYNTHESIS_QUEUED
+    - HELD
+    - ARCHIVED
+Composition:
+  initial: DRAFT
+  terminal:
+  - PUBLISHED
+  - REJECTED
+  - ARCHIVED
+  transitions:
+    DRAFT:
+    - RENDER_QUEUED
+    - REJECTED
+    - ARCHIVED
+    RENDER_QUEUED:
+    - RENDERING
+    - FAILED
+    RENDERING:
+    - REVIEW
+    - FAILED
+    REVIEW:
+    - APPROVED
+    - REJECTED
+    - RENDER_QUEUED
+    APPROVED:
+    - PUBLISH_QUEUED
+    - ARCHIVED
+    PUBLISH_QUEUED:
+    - PUBLISHED
+    - FAILED
+    PUBLISHED: []
+    REJECTED: []
+    ARCHIVED: []
+    FAILED:
+    - RENDER_QUEUED
+    - REVIEW
+    - ARCHIVED
+Task:
+  initial: QUEUED
+  terminal:
+  - SUCCEEDED
+  - CANCELLED
+  - DEAD_LETTER
+  transitions:
+    QUEUED:
+    - CLAIMED
+    - CANCELLED
+    CLAIMED:
+    - RUNNING
+    - QUEUED
+    - CANCELLED
+    RUNNING:
+    - SUCCEEDED
+    - WAITING_RETRY
+    - FAILED
+    - CANCELLED
+    WAITING_RETRY:
+    - QUEUED
+    - DEAD_LETTER
+    - CANCELLED
+    FAILED:
+    - WAITING_RETRY
+    - DEAD_LETTER
+    SUCCEEDED: []
+    CANCELLED: []
+    DEAD_LETTER: []
+Alert:
+  initial: OPEN
+  terminal:
+  - RESOLVED
+  transitions:
+    OPEN:
+    - ACKNOWLEDGED
+    - RESOLVED
+    ACKNOWLEDGED:
+    - OPEN
+    - RESOLVED
+    RESOLVED: []
+Account:
+  initial: ACTIVE
+  terminal:
+  - DISABLED
+  transitions:
+    ACTIVE:
+    - PAUSED
+    - DEGRADED
+    - DISABLED
+    PAUSED:
+    - ACTIVE
+    - DISABLED
+    DEGRADED:
+    - ACTIVE
+    - PAUSED
+    - DISABLED
+    DISABLED: []

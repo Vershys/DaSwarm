@@ -1,0 +1,85 @@
+candidate_projection:
+  consumes:
+  - CANDIDATE_DISCOVERED
+  - CANDIDATE_NORMALIZED
+  - CANDIDATE_DEDUPED
+  - ANALYSIS_STARTED
+  - ANALYSIS_COMPLETED
+  - ROUTE_DECIDED
+  - CANDIDATE_HELD
+  - CANDIDATE_REVIEW_REQUIRED
+  - CANDIDATE_REVIEW_DECIDED
+  - CANDIDATE_ARCHIVED
+  serves:
+  - Content Universe
+  - Overview
+  - Object Inspector
+operations_projection:
+  consumes:
+  - TASK_CREATED
+  - TASK_CLAIMED
+  - TASK_STARTED
+  - TASK_RETRY_SCHEDULED
+  - TASK_SUCCEEDED
+  - TASK_FAILED
+  - TASK_CANCELLED
+  - TASK_DEAD_LETTERED
+  - WORKER_HEARTBEAT
+  - WORKER_DEGRADED
+  - WORKER_OFFLINE
+  serves:
+  - Operations
+  - Infrastructure
+  - Overview
+trend_projection:
+  consumes:
+  - TREND_CREATED
+  - TREND_MEMBERSHIP_ADDED
+  - TREND_UPDATED
+  - TREND_SURGE_DETECTED
+  serves:
+  - Trends
+  - Overview
+  - Graph
+composition_projection:
+  consumes:
+  - COMPOSITION_CREATED
+  - COMPOSITION_RENDER_QUEUED
+  - COMPOSITION_RENDER_STARTED
+  - COMPOSITION_RENDERED
+  - COMPOSITION_REVIEWED
+  - COMPOSITION_APPROVED
+  - COMPOSITION_REJECTED
+  serves:
+  - Synthesis
+  - Graph
+  - Object Inspector
+post_metrics_projection:
+  consumes:
+  - PUBLISH_REQUESTED
+  - PUBLISH_STARTED
+  - PUBLISH_SUCCEEDED
+  - PUBLISH_FAILED
+  - POST_CREATED
+  - METRICS_COLLECTED
+  serves:
+  - Overview
+  - Accounts
+  - Experiments
+  - Graph
+learning_projection:
+  consumes:
+  - EXPERIMENT_OBSERVATION_RECORDED
+  - AUDIENCE_GENOME_UPDATED
+  - MODEL_SCORE_RECORDED
+  serves:
+  - Accounts
+  - Experiments
+  - Object Inspector
+trace_projection:
+  consumes:
+  - '*'
+  serves:
+  - Audit & Replay
+  - Object Inspector
+  - Graph

@@ -1,0 +1,77 @@
+name: Swarm acceptance and Windows launcher
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, manu-swarm-turnkey]
+    paths: ['backend/**', 'frontend/**', 'tests/swarm/**', 'scripts/**', 'docker-compose*', '.github/workflows/swarm.yml']
+permissions:
+  contents: read
+jobs:
+  components:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install fastapi uvicorn sqlalchemy 'psycopg[binary]' alembic redis celery boto3 pyyaml pytest httpx websockets pillow
+      - run: PYTHONPATH=backend python -m pytest tests/swarm -q --junitxml=test-evidence/swarm.xml
+      - run: npm ci && npm run test && npm run type-check && npm run lint && npm run build
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: component-evidence, path: test-evidence}
+  fullstack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install fastapi uvicorn sqlalchemy 'psycopg[binary]' alembic redis celery boto3 pyyaml pytest httpx websockets pillow
+      - run: docker compose -f docker-compose.yml -f docker-compose.acceptance.yml up -d --build
+      - run: python scripts/fullstack_acceptance.py
+      - name: PostgreSQL acceptance suite
+        env:
+          SWARM_TEST_POSTGRES_DSN: postgresql+psycopg://manus:local-development-only@localhost:5432/postgres
+          SWARM_OBJECT_STORE_ENDPOINT: http://localhost:9000
+          SWARM_OBJECT_STORE_ACCESS_KEY: manus-local
+          SWARM_OBJECT_STORE_SECRET_KEY: local-development-only
+        run: PYTHONPATH=backend python -m pytest tests/swarm -q --junitxml=test-evidence/swarm-postgres.xml
+      - run: npm ci && npx playwright install --with-deps chromium && npx playwright test --config playwright.swarm.config.ts
+        working-directory: frontend
+      - name: P0 completion gate
+        if: always()
+        run: python scripts/summarize_acceptance.py
+      - name: Capture service logs
+        if: always()
+        run: mkdir -p test-evidence && docker compose logs --no-color > test-evidence/services.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: fullstack-evidence, path: test-evidence}
+      - run: docker compose -f docker-compose.yml -f docker-compose.acceptance.yml down
+        if: always()
+  windows-launcher:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/package_launcher.py
+      - name: Validate PowerShell syntax
+        shell: powershell
+        run: |
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/launcher.ps1",[ref]$null,[ref]$errors) | Out-Null
+          if($errors.Count -gt 0){$errors;exit 1}
+      - run: pip install pyinstaller
+      - run: pyinstaller --onefile --windowed --name DaSwarm --add-data "dist-swarm/project.zip;." --add-data "scripts/launcher.ps1;." scripts/launcher_entry.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DaSwarm-Windows
+          path: |
+            dist/DaSwarm.exe
+            dist-swarm/DaSwarm-Launcher.cmd

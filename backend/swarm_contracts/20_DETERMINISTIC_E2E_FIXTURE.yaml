@@ -1,0 +1,59 @@
+fixture_id: E2E_FIXTURE_001
+title: "Wildlife rescue candidate \u2192 synthesis \u2192 simulated post \u2192 learning"
+source:
+  adapter: simulated_source
+  candidate:
+    media_type: video
+    title: Dog helps deer reach shore
+    provenance_status: UNKNOWN
+    duration_seconds: 42
+expected_flow:
+- queue: DISCOVER
+  event: CANDIDATE_DISCOVERED
+  candidate_state: DISCOVERED
+- queue: NORMALIZE
+  event: CANDIDATE_NORMALIZED
+  candidate_state: NORMALIZED
+- queue: DEDUPLICATE
+  event: CANDIDATE_DEDUPED
+  candidate_state: DEDUPED
+- queue: ANALYZE_VIDEO
+  event: ANALYSIS_COMPLETED
+  candidate_state: ANALYZED
+- queue: ATOMIZE
+  event: ATOM_CREATED
+  min_atoms: 3
+- queue: CLUSTER
+  event: TREND_MEMBERSHIP_ADDED
+- queue: ROUTE
+  event: ROUTE_DECIDED
+  target_account: NatureMomentsTest
+- queue: COMPOSE
+  event: COMPOSITION_CREATED
+- queue: RENDER
+  event: COMPOSITION_RENDERED
+  renderer: ffmpeg
+- queue: REVIEW
+  event: COMPOSITION_APPROVED
+- queue: PUBLISH
+  event: PUBLISH_SUCCEEDED
+  adapter: simulated_platform
+- queue: COLLECT_METRICS
+  event: METRICS_COLLECTED
+- queue: UPDATE_MODEL
+  event: AUDIENCE_GENOME_UPDATED
+expected_lineage:
+- Candidate -> HAS_ATOM -> ContentAtom
+- Candidate -> MEMBER_OF_TREND -> TrendCluster
+- Candidate -> ROUTED_TO -> Account
+- Composition -> DERIVED_FROM -> Candidate
+- Composition -> USES_ATOM -> ContentAtom
+- Composition -> PUBLISHED_AS -> Post
+- Post -> MEASURED_BY -> MetricSnapshot
+- MetricSnapshot -> UPDATED_MODEL -> AudienceGenome
+restart_test:
+  kill_worker_after_event: ANALYSIS_STARTED
+  expected: lease expires; task retries; no duplicate logical analysis result
+websocket_test:
+  disconnect_after_event: ROUTE_DECIDED
+  expected: reconnect with last_sequence replays gap

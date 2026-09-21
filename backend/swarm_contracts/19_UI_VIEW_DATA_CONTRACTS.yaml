@@ -1,0 +1,106 @@
+Overview:
+  objects:
+  - Candidate
+  - TrendCluster
+  - Account
+  - Task
+  - Worker
+  - Alert
+  - Post
+  - MetricSnapshot
+  apis:
+  - /operations/summary
+  - /trends
+  - /accounts
+Operations:
+  objects:
+  - Task
+  - Worker
+  - AgentRun
+  - Candidate
+  - Composition
+  apis:
+  - /queues
+  - /workers
+  - /tasks/{id}
+Content Universe:
+  objects:
+  - Candidate
+  - ContentAtom
+  - Source
+  - Creator
+  - TrendCluster
+  apis:
+  - /candidates/query
+  - /candidates/{id}
+  - /candidates/{id}/atoms
+Graph:
+  objects:
+  - '*'
+  apis:
+  - /graph/neighborhood
+  - /graph/path
+  - /graph/matrix
+Trends:
+  objects:
+  - TrendCluster
+  - Candidate
+  - Source
+  - Creator
+  - Account
+  apis:
+  - /trends
+  - /trends/{id}
+Accounts:
+  objects:
+  - Account
+  - AudienceGenome
+  - Post
+  - MetricSnapshot
+  - Experiment
+  apis:
+  - /accounts
+  - /accounts/{id}
+  - /accounts/{id}/audience-genome
+  - /accounts/{id}/performance
+Synthesis:
+  objects:
+  - Composition
+  - ContentAtom
+  - Candidate
+  - MediaAsset
+  - Task
+  apis:
+  - /compositions/{id}
+  - /compositions
+  - /compositions/{id}/variants
+  - /compositions/{id}/render
+Experiments:
+  objects:
+  - Experiment
+  - Post
+  - Composition
+  - Account
+  - MetricSnapshot
+  apis:
+  - /experiments
+  - /experiments/{id}
+Infrastructure:
+  objects:
+  - Worker
+  - Task
+  - Sandbox
+  - Alert
+  apis:
+  - /workers
+  - /workers/{id}
+  - /queues
+  - /operations/summary
+Audit & Replay:
+  objects:
+  - '*'
+  apis:
+  - /traces/{trace_id}
+  - /replay/snapshot
+  - /objects/{id}/trace
+  - /objects/{id}/timeline
