@@ -61,7 +61,7 @@ class WikimediaCommonsProvider:
             headers={
                 "User-Agent": os.environ.get(
                     "SWARM_HTTP_USER_AGENT",
-                    "DaSwarm/0.2 live discovery (local operator; Wikimedia Commons API)",
+                    "DaSwarmBot/0.2 (https://github.com/Vershys/DaSwarm; local operator)",
                 )
             },
         )
@@ -79,6 +79,7 @@ class WikimediaCommonsProvider:
             "prop": "imageinfo",
             "iiprop": "url|mime|size|extmetadata|timestamp|user",
             "iiextmetadatafilter": "LicenseShortName|LicenseUrl|UsageTerms|Artist|DateTimeOriginal|ImageDescription|Credit",
+            "maxlag": "5",
         }
         response = self.client.get(self.API, params=params)
         response.raise_for_status()
