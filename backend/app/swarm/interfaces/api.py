@@ -135,7 +135,23 @@ def install(app,service=None,auth=None):
             except Exception:
                 presence={}
 
-            known={w['id']:w for w in workers}
+            # Current operating picture: live processes, active leased workers and
+            # only recently seen historical processes. The event ledger remains the
+            # complete source for long-term history.
+            recent_cutoff=now_ts-600
+            known={}
+            for worker in workers:
+                history=by_worker.get(worker['id'],[])
+                active=next((j for j in history if j['status']=='RUNNING'),None)
+                latest=history[0] if history else None
+                latest_epoch=0.0
+                if latest and latest.get('created_at'):
+                    try:
+                        latest_epoch=datetime.fromisoformat(latest['created_at']).timestamp()
+                    except Exception:
+                        latest_epoch=0.0
+                if worker['id'] in presence or active or latest_epoch>=recent_cutoff:
+                    known[worker['id']]=worker
             for agent_id,item in presence.items():
                 if agent_id not in known:
                     known[agent_id]={
