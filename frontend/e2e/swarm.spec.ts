@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test'
 test('A06 A07 A10 A23 live discovery, linked selection and replay',async({page,request})=>{
+  const sockets:string[]=[]
+  const received:Array<{event?:{object_id:string;event_type:string}}>=[]
+  page.on('websocket',socket=>{
+    if(!socket.url().includes('/ws/swarm'))return
+    sockets.push(socket.url())
+    socket.on('framereceived',frame=>{received.push(JSON.parse(String(frame.payload)))})
+  })
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
   await page.goto('/swarm')
   await expect(page.locator('.connection')).toHaveText('● CONNECTED')
@@ -26,11 +33,15 @@ test('A06 A07 A10 A23 live discovery, linked selection and replay',async({page,r
   await expect(page.locator('.replay-banner')).toHaveCount(0)
   // Offline/online forces reconnect; a new event must arrive in the activity stream.
   await page.context().setOffline(true)
+  await expect(page.locator('.connection')).toHaveText('● RECONNECTING')
   const gapTitle='Reconnect gap '+Date.now()
   const gap=await request.post('/api/v1/swarm/commands/execute',{data:{action:'discover',idempotency_key:crypto.randomUUID(),payload:{title:gapTitle}}})
   expect(gap.ok()).toBeTruthy()
+  const gapObject=(await gap.json()).object
   await page.context().setOffline(false)
   await expect(page.locator('.connection')).toHaveText('● CONNECTED')
+  await expect.poll(()=>received.filter(x=>x.event?.object_id===gapObject.id&&x.event?.event_type==='CANDIDATE_DISCOVERED').length).toBe(1)
+  expect(sockets.some(url=>Number(new URL(url).searchParams.get('last_sequence'))>0)).toBeTruthy()
   await page.getByRole('button',{name:'Content Universe',exact:false}).click()
   await expect(page.getByRole('row').filter({hasText:gapTitle})).toHaveCount(1)
   expect(errors).toEqual([])

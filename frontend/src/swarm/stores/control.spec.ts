@@ -9,12 +9,15 @@ const late: SwarmEvent = { ...early, sequence: 2, event_id: 'event-2', timestamp
 let responses: Record<string, unknown>
 let requests: Array<{path: string; body: unknown}>
 class FakeSocket {
+  static OPEN = 1
+  static CONNECTING = 0
+  readyState = 0
   static instances: FakeSocket[] = []
   onopen: (() => void) | null = null
   onclose: (() => void) | null = null
   onmessage: ((message: {data: string}) => void) | null = null
   constructor(public url: string) { FakeSocket.instances.push(this) }
-  close() { this.onclose?.() }
+  close() { this.readyState = 3; this.onclose?.() }
   event(sequence: number) { this.onmessage?.({data: JSON.stringify({type: 'swarm.event', sequence, event: {...early, sequence}})}) }
 }
 beforeEach(() => {

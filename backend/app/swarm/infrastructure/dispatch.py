@@ -1,6 +1,7 @@
 """Transactional outbox relay. Broker outages never discard persisted work."""
 import os
 import time
+import socket
 from celery import Celery
 from redis import Redis
 from sqlalchemy import select, and_
@@ -15,7 +16,10 @@ celery.conf.update(task_acks_late=True,task_reject_on_worker_lost=True,worker_pr
 
 @celery.task(name='swarm.execute',acks_late=True)
 def execute(task_id):
-    service=Service(Database()); return Worker(service).run_one(task_id)
+    service=Service(Database())
+    worker_id=f'celery:{socket.gethostname()}:{os.getpid()}'
+    try: return Worker(service,worker_id=worker_id).run_one(task_id)
+    finally: service.db.engine.dispose()
 
 class Dispatcher:
     def __init__(self,s,publish=None):

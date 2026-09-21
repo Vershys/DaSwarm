@@ -73,6 +73,25 @@ jobs:
           if($errors.Count -gt 0){$errors;exit 1}
       - run: pip install pyinstaller
       - run: pyinstaller --onefile --windowed --name DaSwarm --add-data "dist-swarm/project.zip;." --add-data "scripts/launcher.ps1;." scripts/launcher_entry.py
+      - name: Open packaged Windows control window
+        shell: powershell
+        run: |
+          $app = Start-Process "$PWD/dist/DaSwarm.exe" -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(45)
+            do {
+              Start-Sleep -Milliseconds 500
+              $window = Get-Process | Where-Object { $_.MainWindowTitle -eq 'DaSwarm / Runtime Control' }
+              if ($window) { break }
+            } while ((Get-Date) -lt $deadline)
+            if (!$window) { throw 'Packaged launcher did not open its control window' }
+            $project = Join-Path $env:LOCALAPPDATA 'DaSwarm/project'
+            if (!(Test-Path "$project/docker-compose.yml")) { throw 'Editable project was not extracted' }
+            if (!(Test-Path "$project/.env")) { throw 'Local configuration was not generated' }
+            Write-Output 'Packaged executable opened successfully and initialized its editable project.'
+          } finally {
+            taskkill /PID $app.Id /T /F | Out-Null
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: DaSwarm-Windows

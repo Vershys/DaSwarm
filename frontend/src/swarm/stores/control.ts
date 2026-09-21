@@ -49,7 +49,7 @@ export const useControl = defineStore('swarm-control', () => {
   }
   async function setTime(value:string) {cursor.value=value;mode.value=value?'REPLAY':'LIVE';await refresh()}
   function connect() {
-    if(stopped)return
+    if(stopped||!navigator.onLine||socket?.readyState===WebSocket.OPEN||socket?.readyState===WebSocket.CONNECTING)return
     socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/v1/ws/swarm?last_sequence=${lastSequence.value}`)
     socket.onopen=()=>{connected.value=true}
     socket.onmessage=(message)=>{
@@ -61,7 +61,9 @@ export const useControl = defineStore('swarm-control', () => {
     }
     socket.onclose=()=>{connected.value=false;if(!stopped)timer=setTimeout(connect,1200)}
   }
-  async function start() {stopped=false;configuration.value=await api('/config');await refresh();connect()}
-  function stop() {stopped=true;socket?.close();if(timer)clearTimeout(timer);if(refreshTimer)clearTimeout(refreshTimer)}
+  function offline() {connected.value=false;socket?.close()}
+  function online() {if(timer)clearTimeout(timer);connect()}
+  async function start() {stopped=false;window.addEventListener('offline',offline);window.addEventListener('online',online);configuration.value=await api('/config');await refresh();connect()}
+  function stop() {stopped=true;window.removeEventListener('offline',offline);window.removeEventListener('online',online);socket?.close();if(timer)clearTimeout(timer);if(refreshTimer)clearTimeout(refreshTimer)}
   return {primary,selected,workspace,search,objectType,status,mode,cursor,connected,lastSequence,objects,timeline,trace,graph,error,busy,configuration,recent,refresh,select,command,setTime,start,stop}
 })
