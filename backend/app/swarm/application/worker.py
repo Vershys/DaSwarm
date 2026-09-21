@@ -1,4 +1,4 @@
-"""Durable leases, fencing, bounded retries and deterministic fixture pipeline."""
+"""Durable leases, fencing, bounded retries and live discovery/media pipeline."""
 import os
 import logging
 import random
@@ -7,12 +7,13 @@ import time
 from sqlalchemy import select, and_, or_, func
 from app.swarm.application.service import Service, row
 from app.swarm.infrastructure.database import objects, jobs, events, scores, intents, remote_posts, uid, now
-from app.swarm.infrastructure.media import Media, PlaceholderIntelligence
+from app.swarm.infrastructure.media import Media
+from app.swarm.infrastructure.providers import get_provider
 from app.swarm.domain.contracts import Conflict
 
 class Worker:
     def __init__(self,service:Service,worker_id=None):
-        self.s=service; self.id=worker_id or uid(); self.media=Media(); self.intelligence=PlaceholderIntelligence()
+        self.s=service; self.id=worker_id or uid(); self.media=Media()
     def claim(self,task_id=None,resource=None):
         with self.s.transaction() as c:
             cfg=self.s.settings(c)['data']; t=time.time()
@@ -92,21 +93,36 @@ class Worker:
             self.fence(c,job)
             obj=self.s.get(c,job['object_ref']['objectId']);cfg=self.s.settings(c)['data']
         kind=job['task_type']
-        if kind=='DEDUPLICATE': return self.media.fingerprint(self.media.fixture(),cfg)
+        if kind=='DISCOVER':
+            provider_name=str(obj['metadata'].get('provider') or 'wikimedia_commons')
+            query=str(obj['metadata'].get('query') or job['payload'].get('query') or 'nature')
+            budget=int(job['payload'].get('budget') or obj['metadata'].get('item_budget') or 8)
+            return {'items':get_provider(provider_name).discover(query,budget),'provider':provider_name,'query':query}
+        if kind=='NORMALIZE':
+            asset=self.media.asset(obj,cfg)
+            return {'probe':self.media.probe(asset,cfg)}
+        if kind=='DEDUPLICATE':
+            return self.media.fingerprint(self.media.asset(obj,cfg),cfg)
         if kind=='ANALYZE_VIDEO':
             with self.s.transaction() as c:
                 obj=self.s.get(c,obj['id'])
-                if obj['status']=='DEDUPED': self.s.change(c,obj['id'],obj['version'],job['trace_id'],job['causation_event_id'],'ANALYSIS_STARTED',status='ANALYZING')
-            # Test hook delays actual work so a separate process can be killed after ANALYSIS_STARTED.
+                if obj['status']=='DEDUPED':
+                    self.s.change(c,obj['id'],obj['version'],job['trace_id'],job['causation_event_id'],'ANALYSIS_STARTED',status='ANALYZING')
             time.sleep(float(os.environ.get('SWARM_TEST_ANALYSIS_DELAY','0')))
-            asset=self.media.fixture()
-            return {'probe':self.media.probe(asset,cfg),'transcript':self.intelligence.transcribe(asset),'embedding':self.intelligence.embed(obj['title'])}
+            asset=self.media.asset(obj,cfg)
+            return {'probe':self.media.probe(asset,cfg),'analysis_mode':'real_media_structural','transcript':None,'embedding':None}
         if kind=='RENDER':
             with self.s.transaction() as c:
                 obj=self.s.get(c,obj['id'])
-                if obj['status']=='RENDER_QUEUED': obj,_=self.s.change(c,obj['id'],obj['version'],job['trace_id'],job['causation_event_id'],'COMPOSITION_RENDER_STARTED',status='RENDERING')
-            return self.media.render(obj['id']+'-'+job['lease_token'],obj['metadata']['storyboard'],cfg)
-        if kind=='PUBLISH': return self.publish_remote(job,obj)
+                candidate=self.s.get(c,obj['metadata']['candidate_id'])
+                if obj['status']=='RENDER_QUEUED':
+                    obj,_=self.s.change(c,obj['id'],obj['version'],job['trace_id'],job['causation_event_id'],'COMPOSITION_RENDER_STARTED',status='RENDERING')
+            source=self.media.asset(candidate,cfg)
+            return self.media.render(source,obj['id']+'-'+job['lease_token'],obj['metadata']['storyboard'],cfg)
+        if kind=='PUBLISH':
+            if os.environ.get('SWARM_TEST_SIMULATION','false').lower()!='true':
+                raise Conflict('No live publishing provider is configured')
+            return self.publish_remote(job,obj)
         return {}
     def publish_remote(self,job,obj):
         key='publish:'+obj['id']; account=obj['metadata']['account_id']
@@ -140,8 +156,32 @@ class Worker:
             if metadata is not None: patch['metadata']=metadata
             obj,ev=s.change(c,obj['id'],obj['version'],trace,cause,event,**patch);cause=ev['event_id']
         def next_task(kind,target=None,payload=None): s.schedule(c,kind,target or obj,trace,cause,payload)
-        if kind=='NORMALIZE':
-            change('NORMALIZED','CANDIDATE_NORMALIZED');next_task('DEDUPLICATE')
+        if kind=='DISCOVER':
+            source=obj
+            existing=[dict(x) for x in c.execute(select(objects).where(objects.c.object_type=='Candidate')).mappings()]
+            created=0
+            for item in artifacts.get('items',[]):
+                duplicate=next((x for x in existing if x['metadata'].get('provider')==item.get('provider') and x['metadata'].get('external_id')==item.get('external_id')),None)
+                if duplicate:
+                    continue
+                metadata={
+                    **item,
+                    'source_id':source['id'],
+                    'media_type':'video',
+                    'ingest_status':'media_ready' if item.get('media_url') else 'metadata_only',
+                    'live':True,
+                }
+                candidate,ev=s.create(c,'Candidate',item.get('title') or item.get('external_id') or 'Discovered video',metadata=metadata,trace=trace,cause=cause,event_type='CANDIDATE_DISCOVERED')
+                s.link(c,candidate['id'],source['id'],'SOURCED_FROM',trace,ev['event_id'])
+                s.link(c,candidate['id'],source['id'],'FOUND_BY',trace,ev['event_id'])
+                if item.get('media_url'):
+                    s.schedule(c,'NORMALIZE',candidate,trace,ev['event_id'])
+                created+=1
+            source_meta={**source['metadata'],'last_discovery_count':created,'last_discovery_provider':artifacts.get('provider'),'last_discovery_query':artifacts.get('query'),'last_discovery_at':now()}
+            s.change(c,source['id'],source['version'],trace,cause,'SOURCE_DISCOVERY_COMPLETED',metadata=source_meta)
+        elif kind=='NORMALIZE':
+            probe=artifacts.get('probe') or {}
+            change('NORMALIZED','CANDIDATE_NORMALIZED',{**obj['metadata'],'probe':probe,'duration_seconds':probe.get('duration_seconds'),'ingest_status':'normalized'});next_task('DEDUPLICATE')
         elif kind=='DEDUPLICATE':
             others=c.execute(select(objects).where(and_(objects.c.object_type=='Candidate',objects.c.id!=obj['id']))).mappings()
             for other in others:
@@ -151,10 +191,21 @@ class Worker:
                     s.link(c,obj['id'],other['id'],'SIMILAR_TO',trace,cause)
             change('DEDUPED','CANDIDATE_DEDUPED',{**obj['metadata'],**artifacts});next_task('ANALYZE_VIDEO')
         elif kind=='ANALYZE_VIDEO':
-            change('ANALYZED','ANALYSIS_COMPLETED',{**obj['metadata'],**artifacts});next_task('ATOMIZE')
+            change('ANALYZED','ANALYSIS_COMPLETED',{**obj['metadata'],**artifacts,'analysis_live':True});next_task('ATOMIZE')
         elif kind=='ATOMIZE':
-            for i,(start,end,motif) in enumerate([(0,4,'hook'),(14,20,'setup'),(30,38,'payoff')]):
-                atom,ev=s.create(c,'ContentAtom',f'{obj["title"]} · {motif}',metadata={'candidate_id':obj['id'],'start':start,'end':end,'duration':end-start,'motif':motif,'saliency':.65+i*.1},trace=trace,cause=cause,event_type='ATOM_CREATED')
+            duration=float((obj['metadata'].get('probe') or {}).get('duration_seconds') or obj['metadata'].get('duration_seconds') or 0)
+            if duration<=0:
+                raise ValueError('Cannot atomize media without a real duration')
+            width=min(6.0,max(1.0,duration/3))
+            anchors=[('opening',0.0),('middle',max(0.0,duration/2-width/2)),('ending',max(0.0,duration-width))]
+            seen=set()
+            for motif,start in anchors:
+                end=min(duration,start+width)
+                key=(round(start,3),round(end,3))
+                if end<=start or key in seen:
+                    continue
+                seen.add(key)
+                atom,ev=s.create(c,'ContentAtom',f'{obj["title"]} · {motif}',metadata={'candidate_id':obj['id'],'start':start,'end':end,'duration':end-start,'motif':motif,'extraction':'duration_based_live_media'},trace=trace,cause=cause,event_type='ATOM_CREATED')
                 s.link(c,obj['id'],atom['id'],'HAS_ATOM',trace,ev['event_id'])
             next_task('CLUSTER')
         elif kind=='CLUSTER':
@@ -167,11 +218,11 @@ class Worker:
         elif kind=='ROUTE':
             accounts=[dict(x) for x in c.execute(select(objects).where(and_(objects.c.object_type=='Account',objects.c.status=='ACTIVE'))).mappings()]
             if not accounts:
-                for name,topic in [('NatureMomentsTest','nature'),('TechClipsTest','technology'),('UnexpectedTest','surprise')]:
-                    a,_=s.create(c,'Account',name,metadata={'topic':topic,'platform':'simulated','adapter':'simulated_platform'},trace=trace,cause=cause);accounts.append(a)
+                a,_=s.create(c,'Account','Local Review',metadata={'topic':'*','platform':'local','adapter':'local_review','publishing_enabled':False},trace=trace,cause=cause)
+                accounts.append(a)
             cfg=s.settings(c)['data'];rank=[]
             for account in accounts:
-                features={'semantic_fit':1. if account['metadata'].get('topic')==obj['metadata']['topic'] else .2,'novelty':.6,'quality':.8}
+                features={'semantic_fit':1. if account['metadata'].get('topic')==obj['metadata'].get('topic') else (.5 if account['metadata'].get('topic')=='*' else .2),'novelty':.6,'quality':.8}
                 score=sum(features[k]*v for k,v in cfg['routing_weights'].items())/sum(cfg['routing_weights'].values())
                 record={'id':uid(),'object_id':obj['id'],'target_object_id':account['id'],'score_type':'route','score':score,'uncertainty':.35,'model_version':cfg['model_version'],'features':features,'explanation':{'method':'configurable weighted heuristic','weights':cfg['routing_weights']},'created_at':now()}
                 c.execute(scores.insert().values(**record));s.link(c,obj['id'],account['id'],'MATCHES_ACCOUNT',trace,cause);rank.append((score,account))
@@ -189,7 +240,7 @@ class Worker:
             atoms=[s.get(c,x) for x in requested]
             comp,ev=s.create(c,'Composition',obj['title']+' · composition',metadata={'account_id':obj['metadata']['account_id'],'candidate_id':obj['id'],
                  'storyboard':[{'atom_id':a['id'],'start':a['metadata']['start'],'end':a['metadata']['end']} for a in atoms],
-                 'provenance_status':obj['metadata']['provenance_status'],'simulated':True},trace=trace,cause=cause,event_type='COMPOSITION_CREATED')
+                 'provenance_status':obj['metadata'].get('provenance_status','UNKNOWN'),'live_content':True},trace=trace,cause=cause,event_type='COMPOSITION_CREATED')
             s.link(c,comp['id'],obj['id'],'DERIVED_FROM',trace,ev['event_id'])
             for atom in atoms: s.link(c,comp['id'],atom['id'],'USES_ATOM',trace,ev['event_id'])
             s.link(c,comp['id'],obj['metadata']['account_id'],'ROUTED_TO',trace,ev['event_id'])
