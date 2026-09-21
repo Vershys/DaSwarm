@@ -38,7 +38,8 @@ def _process_sensors():
     _agent_last_wall=wall
     rss_mb=None
     try:
-        pages=int(open('/proc/self/statm',encoding='utf-8').read().split()[1])
+        with open('/proc/self/statm',encoding='utf-8') as statm:
+            pages=int(statm.read().split()[1])
         rss_mb=pages*os.sysconf('SC_PAGE_SIZE')/1024/1024
     except Exception:
         pass
