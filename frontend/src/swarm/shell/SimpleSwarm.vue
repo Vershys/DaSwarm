@@ -185,14 +185,15 @@ async function startDiscovery() {
 async function toggleDiscoveryPause() {
   actionBusy.value=true
   try {
+    const wasPaused=discoveryPaused.value
     const current=s.configuration?.data?.paused_queues
     const paused=new Set(Array.isArray(current)?current as string[]:[])
     const group=['DISCOVER','FETCH_METADATA']
-    if(discoveryPaused.value) group.forEach(q=>paused.delete(q))
+    if(wasPaused) group.forEach(q=>paused.delete(q))
     else group.forEach(q=>paused.add(q))
     await s.command('configure',{paused_queues:[...paused]},true)
     await refreshData()
-    message.value=discoveryPaused.value?'Discovery patrols resumed.':'Discovery patrols paused.'
+    message.value=wasPaused?'Discovery patrols resumed.':'Discovery patrols paused.'
   } finally { actionBusy.value=false }
 }
 
