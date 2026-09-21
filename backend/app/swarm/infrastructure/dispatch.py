@@ -2,7 +2,10 @@
 import os
 import time
 import socket
+import json
+import threading
 from celery import Celery
+from celery.signals import worker_process_init, worker_process_shutdown
 from redis import Redis
 from sqlalchemy import select, and_
 from app.swarm.infrastructure.database import Database, outbox, jobs, now
@@ -14,12 +17,77 @@ celery=Celery('manu_swarm',broker=broker)
 celery.conf.update(task_acks_late=True,task_reject_on_worker_lost=True,worker_prefetch_multiplier=1,
                    broker_connection_retry_on_startup=True, broker_connection_timeout=3, task_publish_retry=False)
 
+_agent_state={'state':'STARTING','task_id':None,'task_type':None,'target_id':None,'resource_class':None}
+_agent_lock=threading.Lock()
+_agent_stop=threading.Event()
+_agent_thread=None
+
+def _agent_id():
+    return f'celery:{socket.gethostname()}:{os.getpid()}'
+
+def _agent_payload():
+    with _agent_lock:
+        state=dict(_agent_state)
+    return {
+        'id':_agent_id(),
+        'hostname':socket.gethostname(),
+        'pid':os.getpid(),
+        'role':os.environ.get('SWARM_AGENT_ROLE','Execution'),
+        'queues':[x for x in os.environ.get('SWARM_AGENT_QUEUES','').split(',') if x],
+        'state':state['state'],
+        'task_id':state.get('task_id'),
+        'task_type':state.get('task_type'),
+        'target_id':state.get('target_id'),
+        'resource_class':state.get('resource_class'),
+        'heartbeat_at':time.time(),
+    }
+
+def _presence_loop():
+    client=Redis.from_url(broker,socket_connect_timeout=2,socket_timeout=2)
+    while not _agent_stop.wait(1.0):
+        try:
+            payload=_agent_payload()
+            client.setex('swarm:agent:'+payload['id'],5,json.dumps(payload,separators=(',',':')))
+        except Exception:
+            pass
+
+@worker_process_init.connect
+def _register_agent(**_kwargs):
+    global _agent_thread
+    _agent_stop.clear()
+    with _agent_lock:
+        _agent_state.update(state='IDLE',task_id=None,task_type=None,target_id=None,resource_class=None)
+    _agent_thread=threading.Thread(target=_presence_loop,daemon=True,name='swarm-agent-heartbeat')
+    _agent_thread.start()
+
+@worker_process_shutdown.connect
+def _unregister_agent(**_kwargs):
+    _agent_stop.set()
+    try:
+        Redis.from_url(broker,socket_connect_timeout=1,socket_timeout=1).delete('swarm:agent:'+_agent_id())
+    except Exception:
+        pass
+
 @celery.task(name='swarm.execute',acks_late=True)
 def execute(task_id):
     service=Service(Database())
-    worker_id=f'celery:{socket.gethostname()}:{os.getpid()}'
-    try: return Worker(service,worker_id=worker_id).run_one(task_id)
-    finally: service.db.engine.dispose()
+    worker_id=_agent_id()
+    try:
+        with service.db.engine.connect() as c:
+            job=c.execute(select(jobs).where(jobs.c.task_id==task_id)).mappings().first()
+        with _agent_lock:
+            _agent_state.update(
+                state='WORKING',
+                task_id=task_id,
+                task_type=job['task_type'] if job else None,
+                target_id=(job['object_ref'] or {}).get('objectId') if job else None,
+                resource_class=job['resource_class'] if job else None,
+            )
+        return Worker(service,worker_id=worker_id).run_one(task_id)
+    finally:
+        with _agent_lock:
+            _agent_state.update(state='IDLE',task_id=None,task_type=None,target_id=None,resource_class=None)
+        service.db.engine.dispose()
 
 class Dispatcher:
     def __init__(self,s,publish=None):
