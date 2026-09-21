@@ -10,6 +10,7 @@ from app.swarm.application.service import Service, row
 from app.swarm.domain.contracts import Command, Conflict, Forbidden, NotFound, BLUEPRINT
 from app.swarm.infrastructure.database import Database, objects, edges, events, jobs, scores, outbox
 from app.swarm.infrastructure.media import Media
+from app.swarm.infrastructure.providers import capabilities
 
 def flag(name,default=True): return os.environ.get(name,str(default)).lower()=='true'
 
@@ -36,10 +37,15 @@ def install(app,service=None,auth=None):
     def health():
         with service.db.engine.connect() as c:
             seq=c.execute(select(func.max(events.c.sequence))).scalar() or 0
-        return {'status':'ok','last_sequence':seq,'simulation':True,'real_publishing':False}
+        caps=capabilities()
+        return {'status':'ok','last_sequence':seq,'mode':'live','real_publishing':caps['publishing']['real']}
+
+    @router.get('/capabilities')
+    def capability_registry():
+        return capabilities()
     @router.get('/config')
     def config():
-        with service.db.engine.connect() as c: return {**service.settings(c),'ontology':BLUEPRINT,'real_publishing_supported':False}
+        with service.db.engine.connect() as c: return {**service.settings(c),'ontology':BLUEPRINT,'capabilities':capabilities()}
     @router.post('/commands/execute')
     def command(cmd:Command,actor=Depends(authorization)):
         if cmd.action=='synthesize' and not flag('SWARM_SYNTHESIS_ENABLED'): raise Forbidden('Synthesis disabled')
