@@ -3,7 +3,6 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { api, useControl } from '../stores/control'
 import type { SwarmObject } from '../types'
 
-defineEmits<{ advanced: [] }>()
 const s = useControl()
 
 const candidates = ref<SwarmObject[]>([])
@@ -15,6 +14,18 @@ const atoms = ref<SwarmObject[]>([])
 const storyboard = ref<string[]>([])
 const message = ref('')
 const actionBusy = ref(false)
+const settingsOpen = ref(false)
+const settingsSaving = ref(false)
+const settingsDraft = ref({
+  exploration_fraction: 0.1,
+  max_attempts: 5,
+  lease_seconds: 30,
+  max_duration_seconds: 300,
+  max_media_bytes: 100_000_000,
+  max_resolution: 3840,
+  routing_weights: { semantic_fit: 0.55, novelty: 0.2, quality: 0.25 },
+  paused_queues: [] as string[]
+})
 let poll: ReturnType<typeof setInterval>|undefined
 
 const activeTasks = computed(() => {
@@ -63,7 +74,44 @@ function statusDetail(o:SwarmObject) {
     if (o.status === 'APPROVED') return 'Approved. You can now test the publishing workflow.'
     if (o.status === 'PUBLISHED') return 'The simulated publish flow finished successfully.'
   }
-  return 'Open Advanced controls for the full event trace and object details.'
+  return 'More technical details are available in Settings when you need them.'
+}
+
+function openSettings() {
+  const d = s.configuration?.data || {}
+  const weights = (d.routing_weights || {}) as Record<string,number>
+  settingsDraft.value = {
+    exploration_fraction: Number(d.exploration_fraction ?? 0.1),
+    max_attempts: Number(d.max_attempts ?? 5),
+    lease_seconds: Number(d.lease_seconds ?? 30),
+    max_duration_seconds: Number(d.max_duration_seconds ?? 300),
+    max_media_bytes: Number(d.max_media_bytes ?? 100_000_000),
+    max_resolution: Number(d.max_resolution ?? 3840),
+    routing_weights: {
+      semantic_fit: Number(weights.semantic_fit ?? 0.55),
+      novelty: Number(weights.novelty ?? 0.2),
+      quality: Number(weights.quality ?? 0.25)
+    },
+    paused_queues: Array.isArray(d.paused_queues) ? [...d.paused_queues as string[]] : []
+  }
+  settingsOpen.value = true
+}
+
+async function saveSettings() {
+  settingsSaving.value = true
+  try {
+    await s.command('configure', settingsDraft.value as unknown as Record<string,unknown>, true)
+    settingsOpen.value = false
+    message.value = 'Settings saved.'
+  } catch (e) { message.value = String(e) }
+  finally { settingsSaving.value = false }
+}
+
+function pipelinePaused(group:string[]) { return group.every(q=>settingsDraft.value.paused_queues.includes(q)) }
+function setPipeline(group:string[], paused:boolean) {
+  const current = new Set(settingsDraft.value.paused_queues)
+  for (const q of group) paused ? current.add(q) : current.delete(q)
+  settingsDraft.value.paused_queues = [...current]
 }
 
 async function refreshData() {
@@ -165,7 +213,7 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
       <div class="header-actions">
         <span class="connection" :class="{ready:systemReady}">● {{systemReady?'Ready':'Connecting'}}</span>
         <span class="simulation">LOCAL SIMULATION</span>
-        <button @click="$emit('advanced')">Advanced controls</button>
+        <button @click="openSettings">Settings</button>
       </div>
     </header>
 
@@ -234,7 +282,7 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
         <article v-if="selected?.object_type==='Candidate'" class="next-action">
           <div><p class="eyebrow">SELECTED VIDEO</p><h3>{{selected.title}}</h3><p>{{statusDetail(selected)}}</p></div>
           <button v-if="['ROUTED','REVIEW_PENDING','HELD','COMPOSED'].includes(selected.status)" class="primary" :disabled="actionBusy" @click="buildClip(selected)">Choose moments</button>
-          <span v-else class="working">{{['FAILED','ARCHIVED'].includes(selected.status)?'Open Advanced controls for details':'● Workers are processing this automatically'}}</span>
+          <span v-else class="working">{{['FAILED','ARCHIVED'].includes(selected.status)?'Open Settings for technical details':'● Workers are processing this automatically'}}</span>
         </article>
 
         <div v-if="atoms.length" class="storyboard">
@@ -261,9 +309,67 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
         </article>
       </section>
     </main>
+
+    <div v-if="settingsOpen" class="settings-backdrop" @click.self="settingsOpen=false">
+      <section class="settings-panel">
+        <div class="settings-heading">
+          <div><p class="eyebrow">CONFIGURATION</p><h2>DaSwarm settings</h2><p>Defaults are already usable. Change these only when you want different behavior.</p></div>
+          <button @click="settingsOpen=false">Close</button>
+        </div>
+
+        <div class="setting-section">
+          <h3>Discovery behavior</h3>
+          <label>Explore vs. focus <strong>{{Math.round(settingsDraft.exploration_fraction*100)}}% explore</strong>
+            <input v-model.number="settingsDraft.exploration_fraction" type="range" min="0" max="1" step="0.05">
+          </label>
+          <p>Higher values spend more effort looking outside what already fits well.</p>
+        </div>
+
+        <div class="setting-section">
+          <h3>How videos are matched</h3>
+          <div class="triple">
+            <label>Topic fit<input v-model.number="settingsDraft.routing_weights.semantic_fit" type="number" min="0" max="1" step="0.05"></label>
+            <label>Novelty<input v-model.number="settingsDraft.routing_weights.novelty" type="number" min="0" max="1" step="0.05"></label>
+            <label>Quality<input v-model.number="settingsDraft.routing_weights.quality" type="number" min="0" max="1" step="0.05"></label>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <h3>Content limits</h3>
+          <div class="triple">
+            <label>Max video length (sec)<input v-model.number="settingsDraft.max_duration_seconds" type="number" min="1"></label>
+            <label>Max resolution<input v-model.number="settingsDraft.max_resolution" type="number" min="1"></label>
+            <label>Max file size (MB)<input :value="Math.round(settingsDraft.max_media_bytes/1000000)" type="number" min="1" @input="settingsDraft.max_media_bytes=Number(($event.target as HTMLInputElement).value)*1000000"></label>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <h3>Processing controls</h3>
+          <div class="switch-row"><span><strong>Discovery</strong><small>Finding and fetching new items</small></span><button @click="setPipeline(['DISCOVER','FETCH_METADATA'],!pipelinePaused(['DISCOVER','FETCH_METADATA']))">{{pipelinePaused(['DISCOVER','FETCH_METADATA'])?'Resume':'Pause'}}</button></div>
+          <div class="switch-row"><span><strong>Analysis</strong><small>Understanding, deduplicating and routing</small></span><button @click="setPipeline(['NORMALIZE','DEDUPLICATE','ANALYZE_TEXT','ANALYZE_VIDEO','EMBED','TRANSCRIBE','ATOMIZE','CLUSTER','ROUTE'],!pipelinePaused(['NORMALIZE','DEDUPLICATE','ANALYZE_TEXT','ANALYZE_VIDEO','EMBED','TRANSCRIBE','ATOMIZE','CLUSTER','ROUTE']))">{{pipelinePaused(['NORMALIZE','DEDUPLICATE','ANALYZE_TEXT','ANALYZE_VIDEO','EMBED','TRANSCRIBE','ATOMIZE','CLUSTER','ROUTE'])?'Resume':'Pause'}}</button></div>
+          <div class="switch-row"><span><strong>Creation</strong><small>Composing and rendering clips</small></span><button @click="setPipeline(['COMPOSE','RENDER','REVIEW'],!pipelinePaused(['COMPOSE','RENDER','REVIEW']))">{{pipelinePaused(['COMPOSE','RENDER','REVIEW'])?'Resume':'Pause'}}</button></div>
+          <div class="switch-row"><span><strong>Publishing</strong><small>Publishing, metrics and learning</small></span><button @click="setPipeline(['PUBLISH','COLLECT_METRICS','UPDATE_MODEL'],!pipelinePaused(['PUBLISH','COLLECT_METRICS','UPDATE_MODEL']))">{{pipelinePaused(['PUBLISH','COLLECT_METRICS','UPDATE_MODEL'])?'Resume':'Pause'}}</button></div>
+        </div>
+
+        <details class="technical">
+          <summary>Technical reliability options</summary>
+          <div class="triple tech-grid">
+            <label>Retry attempts<input v-model.number="settingsDraft.max_attempts" type="number" min="1" max="20"></label>
+            <label>Worker lease (sec)<input v-model.number="settingsDraft.lease_seconds" type="number" min="1" max="3600"></label>
+          </div>
+          <p>These affect task recovery and worker fencing. Most users should leave them at their defaults.</p>
+        </details>
+
+        <div class="settings-footer">
+          <button @click="settingsOpen=false">Cancel</button>
+          <button class="primary" :disabled="settingsSaving" @click="saveSettings">{{settingsSaving?'Saving…':'Save settings'}}</button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .simple-app{min-height:100vh;background:#0c1219;color:#dce6ef;font:14px/1.5 Inter,Segoe UI,Arial,sans-serif}.simple-header{height:70px;border-bottom:1px solid #263341;background:#121b25;display:flex;align-items:center;justify-content:space-between;padding:0 34px;position:sticky;top:0;z-index:10}.brand{display:flex;align-items:center;gap:12px}.brand .mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid #6bd8ee;color:#6bd8ee;font-weight:800}.brand strong{display:block;font-size:16px}.brand small{display:block;color:#8396a8;font-size:11px}.header-actions{display:flex;align-items:center;gap:12px}.connection{font:11px monospace;color:#d69b60}.connection.ready{color:#73d0a7}.simulation{font:10px monospace;color:#80a0b8;background:#172532;padding:5px 8px;border-radius:4px}.simple-app button{cursor:pointer;background:#1b2835;border:1px solid #33485a;color:#d4e2ed;border-radius:6px;padding:9px 13px;font:inherit}.simple-app button:hover:not(:disabled){border-color:#6bd8ee;background:#233847}.simple-app button:disabled{opacity:.5;cursor:not-allowed}.simple-app button.primary{background:#15536a;border-color:#2e88a5;color:#d8f8ff;font-weight:650}.simple-app main{max-width:1180px;margin:0 auto;padding:48px 28px 80px}.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:42px;align-items:end;margin-bottom:34px}.eyebrow{margin:0 0 7px;color:#6f91a9;font:10px monospace;letter-spacing:1.4px;font-weight:700}.hero h1{font-size:36px;line-height:1.15;margin:0 0 14px;font-weight:600;letter-spacing:-1px}.lead{max-width:660px;color:#98aabd;font-size:15px}.health{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid #273644;border-radius:8px;background:#111a24}.health div{padding:16px;border-right:1px solid #273644;border-bottom:1px solid #273644}.health div:nth-child(2n){border-right:0}.health div:nth-last-child(-n+2){border-bottom:0}.health strong{font-size:24px;font-weight:500;display:block}.health span{font-size:11px;color:#8296a8}.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:34px}.action-card{border:1px solid #2a3947;background:#121c26;padding:24px;border-radius:8px}.primary-card{border-color:#346576}.disabled-card{opacity:.78}.step{font:10px monospace;color:#79b9cf}.action-card h2,.workflow h2,.work-area h2,.outputs h2{margin:7px 0 8px;font-size:20px;font-weight:550}.action-card p{color:#91a5b6;min-height:44px}.action-card button{display:block;margin:18px 0 9px;width:100%}.action-card small{color:#73899b}.notice{display:flex;justify-content:space-between;gap:12px;border:1px solid #35505e;background:#142633;padding:12px 15px;border-radius:6px;margin-bottom:26px;color:#a9d8e7}.notice.error{border-color:#704448;background:#312125;color:#f3b8b8}.workflow,.work-area,.outputs{border:1px solid #273644;background:#111a24;border-radius:8px;margin-bottom:24px}.workflow{padding:22px}.section-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}.section-heading h2{margin-bottom:0}.section-heading>span{font-size:11px;color:#8296a8}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.steps div{background:#0d151d;border:1px solid #24333f;padding:16px;border-radius:6px}.steps b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#1b3d4c;color:#83ddf0;margin-bottom:14px}.steps strong{display:block;margin-bottom:4px}.steps span{color:#8397a8;font-size:12px}.work-area,.outputs{padding:22px}.quiet{padding:7px 10px!important;font-size:11px!important}.empty{padding:38px;text-align:center;border:1px dashed #334554;border-radius:6px;color:#8296a8;display:grid;gap:8px}.empty strong{color:#bed0df}.items{display:grid;gap:8px}.item{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;background:#0e171f!important;padding:13px 15px!important}.item.selected{border-color:#67cde3!important;background:#132631!important}.item div strong{display:block;font-size:13px}.item div span{font-size:11px;color:#7f94a6}.pill{font:10px monospace;background:#1a3040;color:#9bd7e5;padding:5px 8px;border-radius:10px}.next-action{margin-top:16px;padding:18px;background:#16232e;border:1px solid #304555;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:20px}.next-action h3,.storyboard h3{margin:3px 0 4px;font-size:16px}.next-action p,.storyboard p,.output-card p{margin:0;color:#879cad;font-size:12px}.working{font-size:11px;color:#e0b36e}.storyboard{margin-top:16px;padding:18px;border:1px solid #345164;border-radius:7px}.storyboard>button:not(.render){width:100%;display:flex;align-items:center;gap:12px;text-align:left;margin-top:8px;background:#0f1922}.storyboard>button.chosen{border-color:#6bd8ee;color:#c8f3fb}.storyboard>button>span{display:grid;place-items:center;width:25px;height:25px;background:#1b3341;border-radius:4px;font:11px monospace}.storyboard>button div strong{display:block;text-transform:capitalize}.storyboard>button div small{color:#8195a6}.storyboard .render{width:100%;margin-top:14px}.output-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px;border-top:1px solid #263644}.output-card:first-of-type{border-top:0}.output-card>div:first-child>strong{display:block}.output-card>div:first-child>span{font-size:11px;color:#79b9cf}.output-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}.done{color:#73d0a7;font-size:12px}@media(max-width:800px){.simple-header{padding:0 16px}.simulation{display:none}.simple-app main{padding:28px 16px}.hero,.start-grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.health{max-width:500px}.next-action,.output-card{align-items:flex-start;flex-direction:column}.header-actions .connection{display:none}}@media(max-width:520px){.steps{grid-template-columns:1fr}.header-actions button{font-size:11px;padding:7px}.brand small{display:none}}
+.settings-backdrop{position:fixed;inset:0;background:#050a10cc;z-index:50;display:flex;justify-content:flex-end}.settings-panel{width:min(640px,100%);height:100%;overflow:auto;background:#111a24;border-left:1px solid #334555;padding:28px}.settings-heading{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:1px solid #293947;padding-bottom:18px;margin-bottom:18px}.settings-heading h2{margin:3px 0 4px;font-size:24px}.settings-heading p{margin:0;color:#879bad}.setting-section{padding:18px 0;border-bottom:1px solid #263644}.setting-section h3{margin:0 0 13px;font-size:14px}.setting-section>label,.triple label{display:grid;gap:7px;color:#a9bac8;font-size:12px}.setting-section>label strong{color:#d8e7f2;font-weight:600}.setting-section input{width:100%;box-sizing:border-box;background:#0c151d;border:1px solid #344957;color:#dce6ef;border-radius:5px;padding:8px}.setting-section input[type=range]{padding:0}.setting-section>p,.technical p{color:#7e93a4;font-size:11px}.triple{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.switch-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:10px 0}.switch-row span strong,.switch-row span small{display:block}.switch-row span small{color:#7d92a3}.technical{margin-top:18px;border:1px solid #2b3d4b;border-radius:6px;padding:13px}.technical summary{cursor:pointer;color:#b8c9d6;font-weight:600}.tech-grid{margin-top:14px}.settings-footer{display:flex;justify-content:flex-end;gap:8px;padding-top:22px}@media(max-width:700px){.triple{grid-template-columns:1fr}.settings-panel{padding:20px}}
 </style>
