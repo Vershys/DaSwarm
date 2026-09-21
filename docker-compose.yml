@@ -171,6 +171,8 @@ services:
       SWARM_MEDIA_ROOT: /var/lib/swarm/media
       SWARM_PUBLISH_ENABLED: 'false'
       SWARM_AUTOPUBLISH_ENABLED: 'false'
+      SWARM_AGENT_ROLE: Ingest / General
+      SWARM_AGENT_QUEUES: io,cpu_media,llm
     env_file:
     - path: .env
       required: false
@@ -216,6 +218,8 @@ services:
       SWARM_MEDIA_ROOT: /var/lib/swarm/media
       SWARM_PUBLISH_ENABLED: 'false'
       SWARM_AUTOPUBLISH_ENABLED: 'false'
+      SWARM_AGENT_ROLE: Discovery
+      SWARM_AGENT_QUEUES: browser
     env_file:
     - path: .env
       required: false
@@ -261,6 +265,8 @@ services:
       SWARM_MEDIA_ROOT: /var/lib/swarm/media
       SWARM_PUBLISH_ENABLED: 'false'
       SWARM_AUTOPUBLISH_ENABLED: 'false'
+      SWARM_AGENT_ROLE: Media Analysis
+      SWARM_AGENT_QUEUES: gpu_media
     env_file:
     - path: .env
       required: false
@@ -306,6 +312,8 @@ services:
       SWARM_MEDIA_ROOT: /var/lib/swarm/media
       SWARM_PUBLISH_ENABLED: 'false'
       SWARM_AUTOPUBLISH_ENABLED: 'false'
+      SWARM_AGENT_ROLE: Rendering
+      SWARM_AGENT_QUEUES: render
     env_file:
     - path: .env
       required: false
@@ -351,6 +359,8 @@ services:
       SWARM_MEDIA_ROOT: /var/lib/swarm/media
       SWARM_PUBLISH_ENABLED: 'false'
       SWARM_AUTOPUBLISH_ENABLED: 'false'
+      SWARM_AGENT_ROLE: Publishing
+      SWARM_AGENT_QUEUES: publisher
     env_file:
     - path: .env
       required: false
