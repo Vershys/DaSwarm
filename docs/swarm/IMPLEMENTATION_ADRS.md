@@ -31,3 +31,7 @@ The connected GitHub app permits direct repository writes, but this environment 
 
 ### ADR-020 — Build pinned MinIO source
 The first real GitHub Compose gate found that the Docker Hub MinIO image is unavailable. Build the official release source at commit `07c3a429bfed433e49018cb0f78a52145d4bedeb` in a multi-stage image, retaining its license and revision metadata. The S3 storage contract remains unchanged. CI explicitly installs FFmpeg for host-side media acceptance tests.
+
+
+## ADR-021: Always build the pinned application source
+Application services use local DaSwarm image tags and `pull_policy: build`. A normal Compose startup must not substitute an upstream `latest` image for the bundled extension. The launcher already explicitly supplies `--build`; the policy also protects source-based startup.

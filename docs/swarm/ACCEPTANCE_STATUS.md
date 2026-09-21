@@ -1,27 +1,16 @@
 # Acceptance status
 
-**Completion is not declared.** The handoff requires every P0 gate to pass on the complete runtime.
+**All 28 P0 checks passed** in [GitHub run 35562081034](https://github.com/Vershys/DaSwarm/actions/runs/35562081034), source commit `0a4e5810fac8953e363a7f644a57c7bb4551189f`.
 
-Local evidence:
+- Full Compose runtime started: upstream services, PostgreSQL/pgvector, Redis, MinIO, dispatcher and worker fleet.
+- Live fault tests passed: Redis outage recovery, killed Celery worker recovery, and timeout after simulated platform acceptance without duplicate posts.
+- Real FFmpeg rendering and MinIO storage passed; metrics, AudienceGenome updates and lifecycle reconstruction after restart passed.
+- All 15 grouped acceptance tests passed on PostgreSQL.
+- Real Chromium passed discovery, linked selection, replay and WebSocket gap recovery with a nonzero reconnect cursor.
+- Frontend: 127 tests passed; TypeScript, lint and production build passed. Existing lint/build warnings remain.
+- Windows: executable built, opened its WinForms control window, extracted its project, and generated local configuration. Docker lifecycle execution was tested on Linux; the Windows smoke test does not claim to validate Docker Desktop installation.
+- Independent upstream baseline: 193 offline tests passed, two service-dependent skips, and all five behavioral evaluations passed.
 
-- 15 grouped swarm component tests passed against isolated SQLite, including an actual worker-process kill/reclaim, durable restart reconstruction, timeout-after-platform-acceptance recovery, bounded graph queries, secret rejection, real FFmpeg encode/probe, and WebSocket reconnect protocol.
-- Frontend: 127 tests across 26 files passed, including linked selection, historical state isolation, duplicate event handling and reconnect cursor tests.
-- TypeScript check passed. ESLint: 0 errors; 28 upstream warnings. Production Vite build passed.
-- Independent upstream baseline: 193 tests passed, 2 service-dependent skips; all 5 behavioral evaluations passed.
-- Full Docker startup, PostgreSQL/pgvector, Redis/MinIO integration, actual-browser P0 checks and Windows launcher execution are not validated by those local results.
+[Machine-readable P0 matrix](evidence/P0_MATRIX.json) · [Recorded lifecycle IDs](evidence/ACCEPTANCE_RUN.json) · [Full trace, service logs, JUnit and browser screenshot](https://github.com/Vershys/DaSwarm/actions/runs/35562081034/artifacts/10622712456)
 
-| Gate | Local evidence | Full gate |
-|---|---|---|
-| A01 | Compose definition created | Requires Docker runner |
-| A02 | Alembic repeatability on test database | Requires PostgreSQL runner |
-| A03–A05 | CRUD, concurrency, durability, outbox fault injection | PostgreSQL and actual Redis outage runner |
-| A06–A07 | WebSocket transport and reconnect tests | Real-browser runner |
-| A08–A09 | Duplicate delivery and real subprocess kill/reclaim | PostgreSQL/Celery runner |
-| A10–A15 | Simulated discovery, media metadata, atoms, dedupe, clustering, routing, account separation | Full-stack and PostgreSQL runner |
-| A16–A21 | FFmpeg montage, human approval, publish retry, metrics, learning | Full-stack and object-store runner |
-| A22–A23 | Bounded graph and linked-store tests | PostgreSQL and browser runner |
-| A24–A28 | Replay, trace, provenance routing, secret rejection, bounded dense graph | PostgreSQL/full-stack runner |
-
-`scripts/summarize_acceptance.py` merges PostgreSQL test results, full-stack service evidence and actual-browser results into `test-evidence/P0_MATRIX.json`. Missing evidence is **BLOCKED**, not PASS. The workflow fails unless all 28 P0 gates pass.
-
-The Windows `.cmd` launcher is packaged from the exact source tree. The `.exe` is built on a Windows runner. Neither artifact should be described as Windows-tested merely because packaging succeeds.
+The gate fails unless every A01–A28 result passes. Missing evidence is BLOCKED. P1/P2 performance and advanced-workspace checks are not claimed as passed. Discovery, transcripts/embeddings and publishing retain their explicitly labeled simulation/placeholder limits.

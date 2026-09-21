@@ -1,0 +1,210 @@
+{
+  "A01": {
+    "status": "PASS",
+    "evidence": [
+      "All required services running: backend, frontend, minio, mockserver, mongodb, postgres, redis, sandbox, swarm_dispatcher, swarm_worker_browser, swarm_worker_gpu, swarm_worker_io, swarm_worker_publisher, swarm_worker_render"
+    ]
+  },
+  "A02": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A02_migration_repeatable"
+      ],
+      "Fresh Alembic migration and API startup succeeded"
+    ]
+  },
+  "A03": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A03_A04_versioned_crud_durable_event"
+      ]
+    ]
+  },
+  "A04": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A03_A04_versioned_crud_durable_event"
+      ]
+    ]
+  },
+  "A05": {
+    "status": "PASS",
+    "evidence": [
+      "Outbox recovered actual Redis outage"
+    ]
+  },
+  "A06": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "Real-browser acceptance: A06 A07 A10 A23 live discovery, linked selection and replay"
+      ]
+    ]
+  },
+  "A07": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "Real-browser acceptance: A06 A07 A10 A23 live discovery, linked selection and replay"
+      ]
+    ]
+  },
+  "A08": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A08_duplicate_delivery_and_key_conflict"
+      ]
+    ]
+  },
+  "A09": {
+    "status": "PASS",
+    "evidence": [
+      "Killed Celery GPU worker; lease retry completed analysis once"
+    ]
+  },
+  "A10": {
+    "status": "PASS",
+    "evidence": [
+      "Simulated source persisted candidate",
+      [
+        "Real-browser acceptance: A06 A07 A10 A23 live discovery, linked selection and replay"
+      ]
+    ]
+  },
+  "A11": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A10_A11_A12_A13_A14_A26_discovery_intelligence"
+      ]
+    ]
+  },
+  "A12": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A10_A11_A12_A13_A14_A26_discovery_intelligence"
+      ]
+    ]
+  },
+  "A13": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A10_A11_A12_A13_A14_A26_discovery_intelligence"
+      ]
+    ]
+  },
+  "A14": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A10_A11_A12_A13_A14_A26_discovery_intelligence"
+      ]
+    ]
+  },
+  "A15": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A15_worker_account_separation"
+      ]
+    ]
+  },
+  "A16": {
+    "status": "PASS",
+    "evidence": [
+      "Actual FFmpeg composition rendered and uploaded to MinIO"
+    ]
+  },
+  "A17": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A16_A17_A18_A20_A21_A25_full_lifecycle"
+      ]
+    ]
+  },
+  "A18": {
+    "status": "PASS",
+    "evidence": [
+      "One simulated Post through persisted intent"
+    ]
+  },
+  "A19": {
+    "status": "PASS",
+    "evidence": [
+      "Timeout-after-acceptance retried without duplicate Post"
+    ]
+  },
+  "A20": {
+    "status": "PASS",
+    "evidence": [
+      "MetricSnapshot received"
+    ]
+  },
+  "A21": {
+    "status": "PASS",
+    "evidence": [
+      "Audience model updated"
+    ]
+  },
+  "A22": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A22_A28_bounded_graph"
+      ]
+    ]
+  },
+  "A23": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "Real-browser acceptance: A06 A07 A10 A23 live discovery, linked selection and replay"
+      ]
+    ]
+  },
+  "A24": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A24_replay_immutable"
+      ]
+    ]
+  },
+  "A25": {
+    "status": "PASS",
+    "evidence": [
+      "Post trace covers discovery through learning"
+    ]
+  },
+  "A26": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A10_A11_A12_A13_A14_A26_discovery_intelligence"
+      ]
+    ]
+  },
+  "A27": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A27_secrets_rejected"
+      ]
+    ]
+  },
+  "A28": {
+    "status": "PASS",
+    "evidence": [
+      [
+        "PostgreSQL component test: test_A22_A28_bounded_graph"
+      ]
+    ]
+  }
+}

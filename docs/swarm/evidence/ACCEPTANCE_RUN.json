@@ -1,0 +1,30 @@
+{
+  "candidate_id": "2fcac8fe-ad91-4360-a7e9-828174a7cf99",
+  "composition_id": "e1741ba8-6bf9-4d52-ad38-5ba9f40b03cb",
+  "post_id": "6ec35b22-cccd-45c2-a858-7a4c7eda2563",
+  "trace_id": "df61bb7d-58e8-4830-80b5-62aa7db4e832",
+  "run_url": "https://github.com/Vershys/DaSwarm/actions/runs/35562081034",
+  "commit": "0a4e5810fac8953e363a7f644a57c7bb4551189f",
+  "upstream_pin": "Simpleyyt/ai-manus\n496547ce6a5f599333138342ec126a7ea8ec9646",
+  "task_ids": [
+    "04cd5d2d-3e8a-47b1-9dd2-c12e22fb7c41",
+    "1619de2f-c7d1-4fc7-9c5e-d05343f40863",
+    "1e6fb0da-b4b7-4cfa-a53e-e4721a7c5fa6",
+    "39e17f60-0e6a-4c83-b93e-336418267a51",
+    "5416802c-2b2d-43c3-b961-9981b5d81f58",
+    "5b9d637f-4b86-499a-9683-619cd8abca30",
+    "7589914e-a4d0-44b1-aa4d-19c550d69ed2",
+    "8126168a-beb4-4485-a413-cac966c0ac91",
+    "beb11085-9839-4dd7-9cd3-1eb197ab00fd",
+    "cb44cf54-26b7-4c00-9945-e3fda688993b",
+    "cee9d7c4-f5b3-4cd9-a351-017f685cb2de"
+  ],
+  "metric_snapshot_ids": [
+    "41cc6630-60cd-4915-af54-340ad73a6e96"
+  ],
+  "audience_update_event_ids": [
+    "1bc5a5ae-37ab-4113-bcad-0db5edcdce07"
+  ],
+  "event_count": 130,
+  "full_trace_artifact": "https://github.com/Vershys/DaSwarm/actions/runs/35562081034/artifacts/10622712456"
+}

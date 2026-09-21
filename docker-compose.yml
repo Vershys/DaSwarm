@@ -1,6 +1,7 @@
 services:
   frontend:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-frontend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-frontend:${IMAGE_TAG:-local}
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -18,7 +19,8 @@ services:
     environment:
     - BACKEND_URL=http://backend:8000
   backend:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -71,7 +73,8 @@ services:
       timeout: 5s
       retries: 30
   sandbox:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-sandbox:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-sandbox:${IMAGE_TAG:-local}
     build:
       context: ./sandbox
       dockerfile: Dockerfile
@@ -149,7 +152,8 @@ services:
     - manus-network
     restart: unless-stopped
   swarm_worker_io:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
     environment:
@@ -193,7 +197,8 @@ services:
     - --queues=swarm.io,swarm.cpu_media,swarm.llm
     - --concurrency=${CELERY_CONCURRENCY:-4}
   swarm_worker_browser:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
     environment:
@@ -237,7 +242,8 @@ services:
     - --queues=swarm.browser
     - --concurrency=${SWARM_BROWSER_CONCURRENCY:-4}
   swarm_worker_gpu:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
     environment:
@@ -281,7 +287,8 @@ services:
     - --queues=swarm.gpu_media
     - --concurrency=${SWARM_GPU_CONCURRENCY:-1}
   swarm_worker_render:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
     environment:
@@ -325,7 +332,8 @@ services:
     - --queues=swarm.render
     - --concurrency=${SWARM_RENDER_CONCURRENCY:-1}
   swarm_worker_publisher:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
     environment:
@@ -369,7 +377,8 @@ services:
     - --queues=swarm.publisher
     - --concurrency=1
   swarm_dispatcher:
-    image: ${IMAGE_REGISTRY:-simpleyyt}/manus-backend:${IMAGE_TAG:-latest}
+    pull_policy: build
+    image: ${IMAGE_REGISTRY:-daswarm}/manus-backend:${IMAGE_TAG:-local}
     build:
       context: ./backend
     environment:

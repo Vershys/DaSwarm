@@ -7,7 +7,7 @@ Upstream chat, agent, browser, VNC, MongoDB and Redis features remain in the rep
 
 Open **DaSwarm-Launcher.cmd** (or the Windows CI-built **DaSwarm.exe**). Docker Desktop must be installed and running. Click **Start / Build**. The launcher extracts the complete editable project to `%LOCALAPPDATA%\DaSwarm\project`, generates local credentials, builds the containers, and opens `http://localhost:5173/swarm`.
 
-The first build downloads dependencies and can take several minutes. **Stop Services** preserves storage. Closing the launcher does not stop workers. **Configuration** edits worker concurrency and service settings; **Project / Plugins** opens all source files. Relaunching does not overwrite your modified project.
+The first build downloads dependencies and compiles MinIO; allow roughly 10–20 minutes. **Stop Services** preserves storage. Closing the launcher does not stop workers. **Configuration** edits worker concurrency and service settings; **Project / Plugins** opens all source files. Relaunching does not overwrite your modified project.
 
 The single launcher is an entry point to a Docker-backed system, not a claim that PostgreSQL, browsers and media workers can run without a runtime. Only the web frontend is exposed, bound to loopback. Do not expose it on a public interface with `AUTH_PROVIDER=none`.
 
