@@ -156,7 +156,24 @@ class Service:
                 if old['fingerprint']!=fingerprint: raise Conflict('Idempotency key reused with different command')
                 return old['result']
             p=command.payload; action=command.action; trace=uid(); result={}
-            if action=='discover':
+            if action=='start_discovery':
+                provider=str(p.get('provider') or 'wikimedia_commons')
+                query=str(p.get('query') or 'nature').strip()[:200] or 'nature'
+                budget=max(1,min(int(p.get('budget') or 8),25))
+                title=f'{provider} · {query}'
+                source=row(c.execute(select(objects).where(and_(objects.c.object_type=='Source',objects.c.title==title))))
+                source_metadata={'provider':provider,'query':query,'item_budget':budget,'live':True}
+                if not source:
+                    source,ev=self.create(c,'Source',title,metadata=source_metadata,trace=trace,event_type='SOURCE_CREATED')
+                    cause=ev['event_id']
+                else:
+                    source,ev=self.change(c,source['id'],source['version'],trace,None,'SOURCE_CONFIGURED',actor='human',actor_id=actor_id,metadata={**source['metadata'],**source_metadata})
+                    cause=ev['event_id']
+                task=self.schedule(c,'DISCOVER',source,trace,cause,{'query':query,'budget':budget})
+                result={'object':source,'task_id':task,'trace_id':trace,'live':True}
+            elif action=='discover':
+                if os.environ.get('SWARM_TEST_SIMULATION','false').lower()!='true':
+                    raise Forbidden('Fixture discovery is test-only; use start_discovery')
                 source=row(c.execute(select(objects).where(and_(objects.c.object_type=='Source',objects.c.title=='Simulated wildlife source'))))
                 if not source: source,_=self.create(c,'Source','Simulated wildlife source',metadata={'adapter':'simulated_source'},trace=trace)
                 obj,ev=self.create(c,'Candidate',p.get('title','Dog helps deer reach shore'),metadata={
@@ -200,6 +217,8 @@ class Service:
                     obj,ev=self.change(c,obj['id'],obj['version'],trace,cause,'COMPOSITION_REQUESTED',actor='human',actor_id=actor_id,status='SYNTHESIS_QUEUED')
                     self.schedule(c,'COMPOSE',obj,trace,ev['event_id'],p)
                 elif action=='publish':
+                    if os.environ.get('SWARM_TEST_SIMULATION','false').lower()!='true':
+                        raise Forbidden('No live publishing provider is configured')
                     if obj['object_type']!='Composition' or obj['status']!='APPROVED': raise Conflict('Approve the composition first')
                     obj,ev=self.change(c,obj['id'],obj['version'],trace,cause,'PUBLISH_REQUESTED',actor='human',actor_id=actor_id,status='PUBLISH_QUEUED')
                     self.schedule(c,'PUBLISH',obj,trace,ev['event_id'],p)
