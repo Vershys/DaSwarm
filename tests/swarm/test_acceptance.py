@@ -188,6 +188,24 @@ def test_A27_secrets_rejected(service,monkeypatch):
         with pytest.raises(Forbidden):command(service,'create',object_type='Account',title='bad',metadata=metadata)
     with service.db.engine.connect() as c: assert c.execute(select(func.count()).select_from(events)).scalar()==0
 
+def test_agent_telemetry_contract(service):
+    start=command(service,'discover')
+    worker=Worker(service)
+    assert worker.run_one() is True
+    app=create_app(service)
+    with TestClient(app) as client:
+        response=client.get('/api/v1/swarm/agents/telemetry')
+        assert response.status_code==200
+        payload=response.json()
+        assert {'known_agents','online','working','idle','stale','offline'}<=set(payload['summary'])
+        agent=next(x for x in payload['agents'] if x['id']==worker.id)
+        assert agent['kind']=='worker'
+        assert agent['task']['id']==start['task_id']
+        assert agent['task']['type']=='NORMALIZE'
+        assert agent['target']['id']==start['object']['id']
+        assert agent['stats']['assigned']>=1
+        assert isinstance(agent['recent_activity'],list)
+
 def test_controls_and_fencing(service):
     start=command(service,'discover')
     with service.db.engine.connect() as c:setting=service.settings(c)
