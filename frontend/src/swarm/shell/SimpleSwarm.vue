@@ -8,6 +8,10 @@ const s = useControl()
 const candidates = ref<SwarmObject[]>([])
 const compositions = ref<SwarmObject[]>([])
 const posts = ref<SwarmObject[]>([])
+const capabilities = ref<Record<string,any>|null>(null)
+const discoveryProvider = ref('wikimedia_commons')
+const discoveryQuery = ref('nature')
+const discoveryBudget = ref(8)
 const summary = ref<{objects:Record<string,number>;tasks:Record<string,number>;pending_outbox:number;last_sequence:number}|null>(null)
 const selected = ref<SwarmObject|null>(null)
 const atoms = ref<SwarmObject[]>([])
@@ -35,7 +39,7 @@ const activeTasks = computed(() => {
     .reduce((total,[,count]) => total + Number(count), 0)
 })
 const systemReady = computed(() => s.connected)
-const hasDemo = computed(() => candidates.value.length > 0)
+const hasContent = computed(() => candidates.value.length > 0)
 const latestCandidate = computed(() => candidates.value[0] || null)
 
 function statusLabel(o:SwarmObject) {
@@ -54,7 +58,7 @@ function statusLabel(o:SwarmObject) {
     RENDERING:'Rendering clip',
     REVIEW:'Ready to review',
     APPROVED:'Approved',
-    PUBLISH_QUEUED:'Publishing test post',
+    PUBLISH_QUEUED:'Publishing',
     PUBLISHED:'Finished',
     FAILED:'Needs attention'
   }
@@ -71,8 +75,8 @@ function statusDetail(o:SwarmObject) {
   if (o.object_type === 'Composition') {
     if (['DRAFT','RENDER_QUEUED','RENDERING'].includes(o.status)) return 'The render worker is creating the video.'
     if (o.status === 'REVIEW') return 'Watch the result, then approve or reject it.'
-    if (o.status === 'APPROVED') return 'Approved. You can now test the publishing workflow.'
-    if (o.status === 'PUBLISHED') return 'The simulated publish flow finished successfully.'
+    if (o.status === 'APPROVED') return 'Approved and saved locally. A real publishing provider can be connected later.'
+    if (o.status === 'PUBLISHED') return 'Published through a connected live provider.'
   }
   return 'More technical details are available in Settings when you need them.'
 }
@@ -116,16 +120,18 @@ function setPipeline(group:string[], paused:boolean) {
 
 async function refreshData() {
   try {
-    const [c,co,p,ops] = await Promise.all([
+    const [c,co,p,ops,caps] = await Promise.all([
       api<{items:SwarmObject[]}>('/objects/query',{object_type:'Candidate',search:'',status:null,limit:20}),
       api<{items:SwarmObject[]}>('/objects/query',{object_type:'Composition',search:'',status:null,limit:20}),
       api<{items:SwarmObject[]}>('/objects/query',{object_type:'Post',search:'',status:null,limit:20}),
-      api<{objects:Record<string,number>;tasks:Record<string,number>;pending_outbox:number;last_sequence:number}>('/operations/summary')
+      api<{objects:Record<string,number>;tasks:Record<string,number>;pending_outbox:number;last_sequence:number}>('/operations/summary'),
+      api<Record<string,any>>('/capabilities')
     ])
     candidates.value = c.items
     compositions.value = co.items
     posts.value = p.items
     summary.value = ops
+    capabilities.value = caps
     if (selected.value) {
       selected.value = [...c.items,...co.items].find(o => o.id === selected.value?.id) || selected.value
     }
@@ -141,18 +147,27 @@ async function choose(o:SwarmObject) {
   try { await s.select({objectId:o.id,objectType:o.object_type,version:o.version}) } catch {}
 }
 
-async function runDemo() {
+async function startDiscovery() {
   actionBusy.value = true
-  message.value = 'Creating a local test video and handing it to the workers…'
+  message.value = 'Starting live discovery…'
   try {
-    await s.command('discover')
+    await s.command('start_discovery',{
+      provider:discoveryProvider.value,
+      query:discoveryQuery.value.trim() || 'nature',
+      budget:Math.max(1,Math.min(25,Number(discoveryBudget.value)||8))
+    })
     await refreshData()
-    const newest = candidates.value[0]
-    if (newest) await choose(newest)
-    message.value = 'Demo started. The workers will analyze it automatically.'
+    message.value = discoveryProvider.value==='youtube_data'
+      ? 'Live YouTube metadata discovery started. Those candidates stay metadata-only until an authorized media path exists.'
+      : 'Live discovery started. Real internet media will flow through analysis automatically.'
   } finally {
     actionBusy.value = false
   }
+}
+
+function renderUrl(o:SwarmObject) {
+  const r=o.metadata?.render as {key?:string}|undefined
+  return r?.key ? '/api/v1/swarm/media/'+encodeURIComponent(r.key) : ''
 }
 
 async function buildClip(o:SwarmObject) {
@@ -212,7 +227,7 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
       <div class="brand"><span class="mark">M</span><div><strong>DaSwarm</strong><small>Content swarm control</small></div></div>
       <div class="header-actions">
         <span class="connection" :class="{ready:systemReady}">● {{systemReady?'Ready':'Connecting'}}</span>
-        <span class="simulation">LOCAL SIMULATION</span>
+<span class="simulation">LIVE</span>
         <button @click="openSettings">Settings</button>
       </div>
     </header>
@@ -228,24 +243,28 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
           <div><strong>{{activeTasks}}</strong><span>jobs working</span></div>
           <div><strong>{{candidates.length}}</strong><span>videos found</span></div>
           <div><strong>{{compositions.length}}</strong><span>clips built</span></div>
-          <div><strong>{{posts.length}}</strong><span>test posts</span></div>
+          <div><strong>{{Object.values(capabilities?.discovery||{}).filter((x:any)=>x.installed).length}}</strong><span>live sources</span></div>
         </div>
       </section>
 
       <section class="start-grid">
-        <article class="action-card primary-card">
-          <span class="step">AVAILABLE NOW</span>
-          <h2>Test the whole pipeline</h2>
-          <p>DaSwarm generates a harmless local sample video, then runs normalization, duplicate checking, analysis, clipping and routing.</p>
-          <button class="primary" :disabled="!systemReady||actionBusy" @click="runDemo">{{actionBusy?'Working…':'Run Demo'}}</button>
-          <small>This does <b>not</b> search the internet or publish anything real.</small>
-        </article>
-        <article class="action-card disabled-card">
-          <span class="step">NEXT CAPABILITY</span>
-          <h2>Discover videos on the internet</h2>
-          <p>Browser/source adapters will continuously find real videos and feed them into the same pipeline.</p>
-          <button disabled>Internet Discovery — Not installed yet</button>
-          <small>The UI will enable this automatically when a real discovery provider is installed.</small>
+        <article class="action-card primary-card live-discovery">
+          <span class="step">LIVE DISCOVERY</span>
+          <h2>Find real videos</h2>
+          <p>Choose a source and topic. DaSwarm will create a real discovery job and feed results into the existing worker pipeline.</p>
+          <div class="discovery-form">
+            <label>Source
+              <select v-model="discoveryProvider">
+                <option value="wikimedia_commons">Wikimedia Commons · full media</option>
+                <option value="youtube_data" :disabled="!capabilities?.discovery?.youtube_data?.installed">YouTube · newest metadata {{capabilities?.discovery?.youtube_data?.installed?'':'(API key needed)'}}</option>
+              </select>
+            </label>
+            <label>What to look for<input v-model="discoveryQuery" placeholder="nature, cars, science…"></label>
+            <label>Items this run<input v-model.number="discoveryBudget" type="number" min="1" max="25"></label>
+          </div>
+          <button class="primary" :disabled="!systemReady||actionBusy" @click="startDiscovery">{{actionBusy?'Working…':'Start Discovery'}}</button>
+          <small v-if="discoveryProvider==='wikimedia_commons'">Real search + real downloadable source media + real FFmpeg processing.</small>
+          <small v-else>Uses the official YouTube Data API. Metadata is live; audiovisual media is not downloaded through the API.</small>
         </article>
       </section>
 
@@ -254,12 +273,12 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
       </div>
 
       <section class="workflow">
-        <div class="section-heading"><div><p class="eyebrow">HOW IT WORKS</p><h2>Four simple stages</h2></div><span>{{activeTasks ? 'Workers are active' : (hasDemo ? 'Waiting for your next action' : 'Ready to begin')}}</span></div>
+        <div class="section-heading"><div><p class="eyebrow">HOW IT WORKS</p><h2>Four simple stages</h2></div><span>{{activeTasks ? 'Workers are active' : (hasContent ? 'Waiting for your next action' : 'Ready to begin')}}</span></div>
         <div class="steps">
           <div><b>1</b><strong>Find</strong><span>Bring a video into DaSwarm.</span></div>
           <div><b>2</b><strong>Understand</strong><span>Workers analyze, deduplicate and break it into useful moments.</span></div>
           <div><b>3</b><strong>Build</strong><span>Choose moments and render a new composition.</span></div>
-          <div><b>4</b><strong>Review</strong><span>Approve the result and test the publish workflow.</span></div>
+          <div><b>4</b><strong>Review</strong><span>Watch and approve the real rendered output.</span></div>
         </div>
       </section>
 
@@ -270,7 +289,7 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
         </div>
         <div v-if="!candidates.length" class="empty">
           <strong>No videos have entered the pipeline.</strong>
-          <span>Press <b>Run Demo</b> above to see the full system work once.</span>
+          <span>Press <b>Start Discovery</b> above to bring in real internet content.</span>
         </div>
         <div v-else class="items">
           <button v-for="o in candidates" :key="o.id" class="item" :class="{selected:selected?.id===o.id}" @click="choose(o)">
@@ -298,13 +317,16 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
       <section v-if="compositions.length" class="outputs">
         <div class="section-heading"><div><p class="eyebrow">OUTPUTS</p><h2>Clips to review</h2></div></div>
         <article v-for="o in compositions" :key="o.id" class="output-card">
-          <div><strong>{{o.title}}</strong><span>{{statusLabel(o)}}</span><p>{{statusDetail(o)}}</p></div>
+          <div class="output-main">
+            <video v-if="renderUrl(o)" :src="renderUrl(o)" controls preload="metadata"></video>
+            <div><strong>{{o.title}}</strong><span>{{statusLabel(o)}}</span><p>{{statusDetail(o)}}</p></div>
+          </div>
           <div class="output-actions">
             <button v-if="o.status==='REVIEW'" class="primary" :disabled="actionBusy" @click="approve(o)">Approve</button>
             <button v-if="o.status==='REVIEW'" :disabled="actionBusy" @click="reject(o)">Reject</button>
-            <button v-if="o.status==='APPROVED'" class="primary" :disabled="actionBusy" @click="publish(o)">Publish test post</button>
-            <span v-if="['RENDER_QUEUED','RENDERING','PUBLISH_QUEUED'].includes(o.status)" class="working">● Working automatically</span>
-            <span v-if="o.status==='PUBLISHED'" class="done">✓ Finished</span>
+            <span v-if="o.status==='APPROVED'" class="done">✓ Approved · saved locally</span>
+            <span v-if="['RENDER_QUEUED','RENDERING'].includes(o.status)" class="working">● Working automatically</span>
+            <span v-if="o.status==='PUBLISHED'" class="done">✓ Published live</span>
           </div>
         </article>
       </section>
@@ -370,6 +392,6 @@ onUnmounted(()=>{ s.stop(); if(poll) clearInterval(poll) })
 </template>
 
 <style scoped>
-.simple-app{min-height:100vh;background:#0c1219;color:#dce6ef;font:14px/1.5 Inter,Segoe UI,Arial,sans-serif}.simple-header{height:70px;border-bottom:1px solid #263341;background:#121b25;display:flex;align-items:center;justify-content:space-between;padding:0 34px;position:sticky;top:0;z-index:10}.brand{display:flex;align-items:center;gap:12px}.brand .mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid #6bd8ee;color:#6bd8ee;font-weight:800}.brand strong{display:block;font-size:16px}.brand small{display:block;color:#8396a8;font-size:11px}.header-actions{display:flex;align-items:center;gap:12px}.connection{font:11px monospace;color:#d69b60}.connection.ready{color:#73d0a7}.simulation{font:10px monospace;color:#80a0b8;background:#172532;padding:5px 8px;border-radius:4px}.simple-app button{cursor:pointer;background:#1b2835;border:1px solid #33485a;color:#d4e2ed;border-radius:6px;padding:9px 13px;font:inherit}.simple-app button:hover:not(:disabled){border-color:#6bd8ee;background:#233847}.simple-app button:disabled{opacity:.5;cursor:not-allowed}.simple-app button.primary{background:#15536a;border-color:#2e88a5;color:#d8f8ff;font-weight:650}.simple-app main{max-width:1180px;margin:0 auto;padding:48px 28px 80px}.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:42px;align-items:end;margin-bottom:34px}.eyebrow{margin:0 0 7px;color:#6f91a9;font:10px monospace;letter-spacing:1.4px;font-weight:700}.hero h1{font-size:36px;line-height:1.15;margin:0 0 14px;font-weight:600;letter-spacing:-1px}.lead{max-width:660px;color:#98aabd;font-size:15px}.health{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid #273644;border-radius:8px;background:#111a24}.health div{padding:16px;border-right:1px solid #273644;border-bottom:1px solid #273644}.health div:nth-child(2n){border-right:0}.health div:nth-last-child(-n+2){border-bottom:0}.health strong{font-size:24px;font-weight:500;display:block}.health span{font-size:11px;color:#8296a8}.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:34px}.action-card{border:1px solid #2a3947;background:#121c26;padding:24px;border-radius:8px}.primary-card{border-color:#346576}.disabled-card{opacity:.78}.step{font:10px monospace;color:#79b9cf}.action-card h2,.workflow h2,.work-area h2,.outputs h2{margin:7px 0 8px;font-size:20px;font-weight:550}.action-card p{color:#91a5b6;min-height:44px}.action-card button{display:block;margin:18px 0 9px;width:100%}.action-card small{color:#73899b}.notice{display:flex;justify-content:space-between;gap:12px;border:1px solid #35505e;background:#142633;padding:12px 15px;border-radius:6px;margin-bottom:26px;color:#a9d8e7}.notice.error{border-color:#704448;background:#312125;color:#f3b8b8}.workflow,.work-area,.outputs{border:1px solid #273644;background:#111a24;border-radius:8px;margin-bottom:24px}.workflow{padding:22px}.section-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}.section-heading h2{margin-bottom:0}.section-heading>span{font-size:11px;color:#8296a8}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.steps div{background:#0d151d;border:1px solid #24333f;padding:16px;border-radius:6px}.steps b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#1b3d4c;color:#83ddf0;margin-bottom:14px}.steps strong{display:block;margin-bottom:4px}.steps span{color:#8397a8;font-size:12px}.work-area,.outputs{padding:22px}.quiet{padding:7px 10px!important;font-size:11px!important}.empty{padding:38px;text-align:center;border:1px dashed #334554;border-radius:6px;color:#8296a8;display:grid;gap:8px}.empty strong{color:#bed0df}.items{display:grid;gap:8px}.item{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;background:#0e171f!important;padding:13px 15px!important}.item.selected{border-color:#67cde3!important;background:#132631!important}.item div strong{display:block;font-size:13px}.item div span{font-size:11px;color:#7f94a6}.pill{font:10px monospace;background:#1a3040;color:#9bd7e5;padding:5px 8px;border-radius:10px}.next-action{margin-top:16px;padding:18px;background:#16232e;border:1px solid #304555;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:20px}.next-action h3,.storyboard h3{margin:3px 0 4px;font-size:16px}.next-action p,.storyboard p,.output-card p{margin:0;color:#879cad;font-size:12px}.working{font-size:11px;color:#e0b36e}.storyboard{margin-top:16px;padding:18px;border:1px solid #345164;border-radius:7px}.storyboard>button:not(.render){width:100%;display:flex;align-items:center;gap:12px;text-align:left;margin-top:8px;background:#0f1922}.storyboard>button.chosen{border-color:#6bd8ee;color:#c8f3fb}.storyboard>button>span{display:grid;place-items:center;width:25px;height:25px;background:#1b3341;border-radius:4px;font:11px monospace}.storyboard>button div strong{display:block;text-transform:capitalize}.storyboard>button div small{color:#8195a6}.storyboard .render{width:100%;margin-top:14px}.output-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px;border-top:1px solid #263644}.output-card:first-of-type{border-top:0}.output-card>div:first-child>strong{display:block}.output-card>div:first-child>span{font-size:11px;color:#79b9cf}.output-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}.done{color:#73d0a7;font-size:12px}@media(max-width:800px){.simple-header{padding:0 16px}.simulation{display:none}.simple-app main{padding:28px 16px}.hero,.start-grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.health{max-width:500px}.next-action,.output-card{align-items:flex-start;flex-direction:column}.header-actions .connection{display:none}}@media(max-width:520px){.steps{grid-template-columns:1fr}.header-actions button{font-size:11px;padding:7px}.brand small{display:none}}
+.simple-app{min-height:100vh;background:#0c1219;color:#dce6ef;font:14px/1.5 Inter,Segoe UI,Arial,sans-serif}.simple-header{height:70px;border-bottom:1px solid #263341;background:#121b25;display:flex;align-items:center;justify-content:space-between;padding:0 34px;position:sticky;top:0;z-index:10}.brand{display:flex;align-items:center;gap:12px}.brand .mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid #6bd8ee;color:#6bd8ee;font-weight:800}.brand strong{display:block;font-size:16px}.brand small{display:block;color:#8396a8;font-size:11px}.header-actions{display:flex;align-items:center;gap:12px}.connection{font:11px monospace;color:#d69b60}.connection.ready{color:#73d0a7}.simulation{font:10px monospace;color:#80a0b8;background:#172532;padding:5px 8px;border-radius:4px}.simple-app button{cursor:pointer;background:#1b2835;border:1px solid #33485a;color:#d4e2ed;border-radius:6px;padding:9px 13px;font:inherit}.simple-app button:hover:not(:disabled){border-color:#6bd8ee;background:#233847}.simple-app button:disabled{opacity:.5;cursor:not-allowed}.simple-app button.primary{background:#15536a;border-color:#2e88a5;color:#d8f8ff;font-weight:650}.simple-app main{max-width:1180px;margin:0 auto;padding:48px 28px 80px}.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:42px;align-items:end;margin-bottom:34px}.eyebrow{margin:0 0 7px;color:#6f91a9;font:10px monospace;letter-spacing:1.4px;font-weight:700}.hero h1{font-size:36px;line-height:1.15;margin:0 0 14px;font-weight:600;letter-spacing:-1px}.lead{max-width:660px;color:#98aabd;font-size:15px}.health{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid #273644;border-radius:8px;background:#111a24}.health div{padding:16px;border-right:1px solid #273644;border-bottom:1px solid #273644}.health div:nth-child(2n){border-right:0}.health div:nth-last-child(-n+2){border-bottom:0}.health strong{font-size:24px;font-weight:500;display:block}.health span{font-size:11px;color:#8296a8}.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:34px}.action-card{border:1px solid #2a3947;background:#121c26;padding:24px;border-radius:8px}.primary-card{border-color:#346576}.disabled-card{opacity:.78}.step{font:10px monospace;color:#79b9cf}.action-card h2,.workflow h2,.work-area h2,.outputs h2{margin:7px 0 8px;font-size:20px;font-weight:550}.action-card p{color:#91a5b6;min-height:44px}.action-card button{display:block;margin:18px 0 9px;width:100%}.action-card small{color:#73899b}.discovery-form{display:grid;grid-template-columns:1.2fr 1.8fr .7fr;gap:10px;margin-top:18px}.discovery-form label{display:grid;gap:6px;color:#91a5b6;font-size:11px}.discovery-form input,.discovery-form select{background:#0d151e;border:1px solid #304452;color:#dce6ef;border-radius:5px;padding:9px;width:100%;box-sizing:border-box}.output-main{display:flex;gap:14px;align-items:center;min-width:0}.output-main video{width:190px;max-height:120px;background:#05080b;border-radius:5px}.output-main>div{min-width:0}.notice{display:flex;justify-content:space-between;gap:12px;border:1px solid #35505e;background:#142633;padding:12px 15px;border-radius:6px;margin-bottom:26px;color:#a9d8e7}.notice.error{border-color:#704448;background:#312125;color:#f3b8b8}.workflow,.work-area,.outputs{border:1px solid #273644;background:#111a24;border-radius:8px;margin-bottom:24px}.workflow{padding:22px}.section-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}.section-heading h2{margin-bottom:0}.section-heading>span{font-size:11px;color:#8296a8}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.steps div{background:#0d151d;border:1px solid #24333f;padding:16px;border-radius:6px}.steps b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#1b3d4c;color:#83ddf0;margin-bottom:14px}.steps strong{display:block;margin-bottom:4px}.steps span{color:#8397a8;font-size:12px}.work-area,.outputs{padding:22px}.quiet{padding:7px 10px!important;font-size:11px!important}.empty{padding:38px;text-align:center;border:1px dashed #334554;border-radius:6px;color:#8296a8;display:grid;gap:8px}.empty strong{color:#bed0df}.items{display:grid;gap:8px}.item{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;background:#0e171f!important;padding:13px 15px!important}.item.selected{border-color:#67cde3!important;background:#132631!important}.item div strong{display:block;font-size:13px}.item div span{font-size:11px;color:#7f94a6}.pill{font:10px monospace;background:#1a3040;color:#9bd7e5;padding:5px 8px;border-radius:10px}.next-action{margin-top:16px;padding:18px;background:#16232e;border:1px solid #304555;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:20px}.next-action h3,.storyboard h3{margin:3px 0 4px;font-size:16px}.next-action p,.storyboard p,.output-card p{margin:0;color:#879cad;font-size:12px}.working{font-size:11px;color:#e0b36e}.storyboard{margin-top:16px;padding:18px;border:1px solid #345164;border-radius:7px}.storyboard>button:not(.render){width:100%;display:flex;align-items:center;gap:12px;text-align:left;margin-top:8px;background:#0f1922}.storyboard>button.chosen{border-color:#6bd8ee;color:#c8f3fb}.storyboard>button>span{display:grid;place-items:center;width:25px;height:25px;background:#1b3341;border-radius:4px;font:11px monospace}.storyboard>button div strong{display:block;text-transform:capitalize}.storyboard>button div small{color:#8195a6}.storyboard .render{width:100%;margin-top:14px}.output-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px;border-top:1px solid #263644}.output-card:first-of-type{border-top:0}.output-card>div:first-child>strong{display:block}.output-card>div:first-child>span{font-size:11px;color:#79b9cf}.output-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}.done{color:#73d0a7;font-size:12px}@media(max-width:800px){.discovery-form{grid-template-columns:1fr}.output-main{align-items:flex-start;flex-direction:column}.output-main video{width:100%;max-height:260px}.simple-header{padding:0 16px}.simulation{display:none}.simple-app main{padding:28px 16px}.hero,.start-grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.health{max-width:500px}.next-action,.output-card{align-items:flex-start;flex-direction:column}.header-actions .connection{display:none}}@media(max-width:520px){.steps{grid-template-columns:1fr}.header-actions button{font-size:11px;padding:7px}.brand small{display:none}}
 .settings-backdrop{position:fixed;inset:0;background:#050a10cc;z-index:50;display:flex;justify-content:flex-end}.settings-panel{width:min(640px,100%);height:100%;overflow:auto;background:#111a24;border-left:1px solid #334555;padding:28px}.settings-heading{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:1px solid #293947;padding-bottom:18px;margin-bottom:18px}.settings-heading h2{margin:3px 0 4px;font-size:24px}.settings-heading p{margin:0;color:#879bad}.setting-section{padding:18px 0;border-bottom:1px solid #263644}.setting-section h3{margin:0 0 13px;font-size:14px}.setting-section>label,.triple label{display:grid;gap:7px;color:#a9bac8;font-size:12px}.setting-section>label strong{color:#d8e7f2;font-weight:600}.setting-section input{width:100%;box-sizing:border-box;background:#0c151d;border:1px solid #344957;color:#dce6ef;border-radius:5px;padding:8px}.setting-section input[type=range]{padding:0}.setting-section>p,.technical p{color:#7e93a4;font-size:11px}.triple{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.switch-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:10px 0}.switch-row span strong,.switch-row span small{display:block}.switch-row span small{color:#7d92a3}.technical{margin-top:18px;border:1px solid #2b3d4b;border-radius:6px;padding:13px}.technical summary{cursor:pointer;color:#b8c9d6;font-weight:600}.tech-grid{margin-top:14px}.settings-footer{display:flex;justify-content:flex-end;gap:8px;padding-top:22px}@media(max-width:700px){.triple{grid-template-columns:1fr}.settings-panel{padding:20px}}
 </style>
