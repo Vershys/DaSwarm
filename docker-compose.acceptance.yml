@@ -1,9 +1,25 @@
 # Test-runner ports only; the normal launcher does not expose storage services.
 services:
+  backend:
+    environment:
+      SWARM_TEST_SIMULATION: "true"
   postgres:
     ports: ["127.0.0.1:5432:5432"]
   minio:
     ports: ["127.0.0.1:9000:9000"]
+  swarm_worker_io:
+    environment:
+      SWARM_TEST_SIMULATION: "true"
+  swarm_worker_browser:
+    environment:
+      SWARM_TEST_SIMULATION: "true"
   swarm_worker_gpu:
     environment:
+      SWARM_TEST_SIMULATION: "true"
       SWARM_TEST_ANALYSIS_DELAY: "3"
+  swarm_worker_render:
+    environment:
+      SWARM_TEST_SIMULATION: "true"
+  swarm_worker_publisher:
+    environment:
+      SWARM_TEST_SIMULATION: "true"
