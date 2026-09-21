@@ -7,7 +7,7 @@ import { getCachedClientConfig } from '../api/config'
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/swarm', component: () => import('../swarm/shell/SwarmShell.vue'), meta: { requiresAuth: true } },
+    { path: '/swarm', component: () => import('../swarm/shell/SwarmPage.vue'), meta: { requiresAuth: true } },
     {
       path: '/library',
       component: () => import('../pages/MainLayout.vue'),
