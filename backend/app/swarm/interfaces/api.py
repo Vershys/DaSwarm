@@ -181,7 +181,7 @@ def install(app,service=None,auth=None):
                 heartbeat_age=max(0.0,now_ts-heartbeat_at) if heartbeat_at else None
                 lease_remaining=max(0.0,float(active['lease_until'])-now_ts) if active else 0.0
                 if live:
-                    state='WORKING' if live.get('state')=='WORKING' else 'IDLE'
+                    state='WORKING' if live.get('state')=='WORKING' or (active and lease_remaining>0) else 'IDLE'
                     if active and lease_remaining<=0:
                         state='STALE'
                 elif active:
